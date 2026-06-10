@@ -69,6 +69,8 @@ public class Fix606Process
                 NationalityID = 113,
                 SubscriptionType = "V"
             });
+
+            _logger.LogInformation("Add {MSISDN} terminate numbers for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);
         }
 
         await _dbContext.SematiTerminateNumbers.AddRangeAsync(numberToBeTerminated);
