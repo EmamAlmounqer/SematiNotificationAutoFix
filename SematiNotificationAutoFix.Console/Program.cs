@@ -8,7 +8,9 @@ using SematiNotificationAutoFix.DAL.Data;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddDbContext<ActivationDbContext>(opts =>
-    opts.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+    opts.UseSqlServer(
+        builder.Configuration.GetConnectionString("Default"),
+        sqlOpts => sqlOpts.UseCompatibilityLevel(120)));
 
 builder.Services.AddScoped<Fix606Process>();
 

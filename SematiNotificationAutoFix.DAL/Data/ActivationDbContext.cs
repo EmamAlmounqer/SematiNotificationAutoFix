@@ -32,10 +32,6 @@ public partial class ActivationDbContext : DbContext
 
     public virtual DbSet<SematiTerminateNumber> SematiTerminateNumbers { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Data Source=10.4.95.44;Initial Catalog=Activation;User ID=AppDbAccess;Password=t4v-25QByD;Trust Server Certificate=True");
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Activation>(entity =>

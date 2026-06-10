@@ -1,28 +1,29 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Windows.Markup;
+using Microsoft.Extensions.Configuration;
 
 namespace SematiNotificationAutoFix.Console.Processes;
 
 public class Fix606Process
 {
     private readonly ActivationDbContext _dbContext;
+    private readonly int _sematiServiceCallLogCutOffId;
 
-    public Fix606Process(ActivationDbContext dbContext)
+    public Fix606Process(IConfiguration configuration,ActivationDbContext dbContext)
     {
         _dbContext = dbContext;
+        _sematiServiceCallLogCutOffId = configuration.GetValue<int>("SematiServiceCallLogCutOffId");
     }
 
-    public async Task Process(int id)
+    public async Task Process(int sematiNotificationActionId)
     {
-        var sematiNotificationAction = await _dbContext.SematiNotificationActions.FirstOrDefaultAsync(x => x.Id == id);
+        var sematiNotificationAction = await _dbContext.SematiNotificationActions.FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
         if (sematiNotificationAction?.SematiUpdateTcn is null) return;
 
-        var sematiServiceCallLogs = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > 8900366 && x.TCN == sematiNotificationAction.SematiUpdateTcn);
+        var sematiServiceCallLogs = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == sematiNotificationAction.SematiUpdateTcn);
         if (sematiServiceCallLogs is null || sematiServiceCallLogs.Code != 606) return;
 
         var pendingNumbers = JsonSerializer.Deserialize<SematiServiceResponse>(sematiServiceCallLogs.ResponseText)?.PendingNumbers;
@@ -46,6 +47,7 @@ public class Fix606Process
         } 
 
         await _dbContext.SematiTerminateNumbers.AddRangeAsync(numberToBeTerminated);
+        await _dbContext.SaveChangesAsync();
     }
 
     private byte GetIdTypeID(string s)
