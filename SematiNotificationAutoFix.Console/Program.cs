@@ -2,10 +2,13 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SematiNotificationAutoFix.Console.Extensions;
 using SematiNotificationAutoFix.Console.Processes;
 using SematiNotificationAutoFix.DAL.Data;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.AddSerilogLogging();
 
 builder.Services.AddDbContext<ActivationDbContext>(opts =>
     opts.UseSqlServer(
