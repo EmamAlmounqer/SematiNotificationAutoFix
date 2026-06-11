@@ -1,11 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using SematiNotificationAutoFix.Console.Utils;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -16,19 +14,13 @@ public class Fix606Process
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationProcess _terminationProcess;
-    private readonly SqlAgentJobRunner _sqlAgentJobRunner;
     private readonly int _sematiServiceCallLogCutOffId;
 
-    public Fix606Process(IConfiguration configuration,
-                         ActivationDbContext dbContext,
-                         ILogger<Fix606Process> logger,
-                         TerminationProcess terminationProcess,
-                         SqlAgentJobRunner sqlAgentJobRunner)
+    public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess)
     {
         _dbContext = dbContext;
         _logger = logger;
         _terminationProcess = terminationProcess;
-        _sqlAgentJobRunner = sqlAgentJobRunner;
         _sematiServiceCallLogCutOffId = configuration.GetValue<int>("SematiServiceCallLogCutOffId");
     }
 
@@ -39,16 +31,22 @@ public class Fix606Process
 
         _logger.LogInformation("Processing action {ActionId}", sematiNotificationActionId);
 
-        var sematiNotificationAction = await _dbContext.SematiNotificationActions.AsNoTracking().Include(x => x.SematiNotification).AsNoTracking().FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
+        var sematiNotificationAction = await _dbContext.SematiNotificationActions.FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
         if (sematiNotificationAction?.SematiUpdateTcn is null)
         {
             _logger.LogWarning("Action {ActionId} not found or has no TCN — skipping", sematiNotificationActionId);
             return;
         }
 
-        using var ___ = LogContext.PushProperty("UpdateTcn", sematiNotificationAction.SematiUpdateTcn);
+        var personId = sematiNotificationAction.SematiNotification.IdNumber;
+        if (personId is null)
+        {
+            _logger.LogWarning("Could not Find PeronsId For Action {SematiNotificationActionId}", sematiNotificationActionId);
+            return;
+        }
+        using var ____ = LogContext.PushProperty("PersonId", personId);
 
-        var sematiServiceCallLogs = await _dbContext.SematiServiceCallLogs.AsNoTracking().Where(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == sematiNotificationAction.SematiUpdateTcn && x.Operation == "UpdateSematiNotification" && x.RequestText.Contains(sematiNotificationAction.SematiNotification.IdNumber) && x.Code == 606).OrderByDescending(x => x.Id).FirstOrDefaultAsync();
+        var sematiServiceCallLogs = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == sematiNotificationAction.SematiUpdateTcn);
         if (sematiServiceCallLogs is null || sematiServiceCallLogs.Code != 606)
         {
             _logger.LogWarning("No 606 service call log found for action {ActionId} (TCN={Tcn}) — skipping", sematiNotificationActionId, sematiNotificationAction.SematiUpdateTcn);
@@ -56,20 +54,19 @@ public class Fix606Process
         }
 
         var pendingNumbers = JsonSerializer.Deserialize<SematiServiceResponse>(sematiServiceCallLogs.ResponseText)?.PendingNumbers;
-        var personId = JsonSerializer.Deserialize<SematiServiceRequest>(sematiServiceCallLogs.RequestText)?.PersonId;
 
-        if (pendingNumbers is null || personId is null)
+        if (pendingNumbers is null)
         {
             _logger.LogWarning("Could not deserialize pending numbers or person ID for action {ActionId} — skipping", sematiNotificationActionId);
             return;
         }
 
-        using var ____ = LogContext.PushProperty("PersonId", personId);
-
-        List<SematiTerminateNumber> numberToBeTerminated = [];
+        _logger.LogInformation("Get PendingNumbers {PendingNumbers}", pendingNumbers);
 
         foreach (var number in pendingNumbers)
         {
+            _logger.LogInformation("Start SematiTerminateNumber {MSISDN} terminate numbers for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);
+
             var terminateNumber = new SematiTerminateNumber
             {
                 MSISDN = number,
@@ -81,17 +78,11 @@ public class Fix606Process
             };
 
             await _terminationProcess.TerminateNumber(terminateNumber);
+            await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
+            await _dbContext.SaveChangesAsync();
 
-            numberToBeTerminated.Add(terminateNumber);
-            _logger.LogInformation("Add {MSISDN} terminate numbers for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);
+            _logger.LogInformation("End SematiTerminateNumber {MSISDN} with SematiTerminateNumberId {id}", number, terminateNumber);
         }
-
-        await _dbContext.SematiTerminateNumbers.AddRangeAsync(numberToBeTerminated);
-        await _dbContext.SaveChangesAsync();
-
-        _logger.LogInformation("Inserted {Count} terminate numbers for action {ActionId} (PersonId={PersonId})", numberToBeTerminated.Count, sematiNotificationActionId, personId);
-
-
     }
 
     private byte GetIdTypeID(string s)

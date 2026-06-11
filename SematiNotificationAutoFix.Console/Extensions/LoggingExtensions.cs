@@ -17,24 +17,22 @@ public static class LoggingExtensions
             .Enrich.FromLogContext();
 
         // -- db log confgi --
-        // var columnOptions = new ColumnOptions();
-        // // columnOptions.Store.Clear();
-        // columnOptions.AdditionalColumns =
-        // [
-        //     new SqlColumn { ColumnName = "ActionId",    DataType = SqlDbType.Int,      AllowNull = true },
-        //     new SqlColumn { ColumnName = "Tcn",         DataType = SqlDbType.NVarChar, DataLength = 100, AllowNull = true },
-        //     new SqlColumn { ColumnName = "PersonId",    DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
-        //     new SqlColumn { ColumnName = "ProcessName", DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
-        // ];
+        var columnOptions = new ColumnOptions();
+        columnOptions.AdditionalColumns =
+        [
+            new SqlColumn { ColumnName = "ActionId",    DataType = SqlDbType.Int,      AllowNull = true },
+            new SqlColumn { ColumnName = "PersonId",    DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
+            new SqlColumn { ColumnName = "ProcessName", DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
+         ];
 
-        //config.WriteTo.MSSqlServer(
-        //    connectionString: builder.Configuration.GetConnectionString("Logs"),
-        //    sinkOptions: new MSSqlServerSinkOptions
-        //    {
-        //        TableName = "Logs",
-        //        AutoCreateSqlTable = false
-        //    },
-        //    columnOptions: columnOptions);
+        config.WriteTo.MSSqlServer(
+            connectionString: builder.Configuration.GetConnectionString("Logs"),
+            sinkOptions: new MSSqlServerSinkOptions
+            {
+                TableName = "Logs12",
+                AutoCreateSqlTable = true
+            },
+            columnOptions: columnOptions);
 
         Log.Logger = config.CreateLogger();
 

@@ -21,16 +21,23 @@ builder.Services.AddDbContext<ActivationDbContext>(opts =>
 builder.Services.AddSingleton<SqlAgentJobRunner>();
 builder.Services.AddScoped<TerminationProcess>();
 builder.Services.AddScoped<Fix606Process>();
+builder.Services.AddScoped<MissingSematiTermination>();
 
 using var host = builder.Build();
 
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 var fix606Process = host.Services.GetRequiredService<Fix606Process>();
 var sqlAgentJobRunner = host.Services.GetRequiredService<SqlAgentJobRunner>();
+var missingSematiTerminationProcess = host.Services.GetRequiredService<MissingSematiTermination>();
 
 try
 {
-    var ids = File.ReadAllLines("SematiNotificationActionIds.txt")
+    var ids = File.ReadAllLines("Data/Fix606.txt")
+    .Where(line => !string.IsNullOrWhiteSpace(line))
+    .Select(l => int.Parse(l.Trim()))
+    .ToList();
+
+    var MissingSematiTerminationActionIds = File.ReadAllLines("Data/MissingSematiTermination.txt")
     .Where(line => !string.IsNullOrWhiteSpace(line))
     .Select(l => int.Parse(l.Trim()))
     .ToList();
@@ -38,6 +45,11 @@ try
     foreach (var id in ids)
     {
         await fix606Process.Process(id);
+    }
+
+    foreach (var id in MissingSematiTerminationActionIds)
+    {
+        await missingSematiTerminationProcess.Process(id);
     }
 
     var outcome = await sqlAgentJobRunner.RunJobAndWaitAsync(
@@ -53,4 +65,3 @@ finally
 {
     await Log.CloseAndFlushAsync();
 }
-
