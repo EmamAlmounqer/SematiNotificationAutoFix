@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
+using Serilog.Context;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -24,8 +25,8 @@ public class TerminationProcess
     {
         _dbContext = context;
         _logger = logger;
-        _sematiUrl = configuration.GetValue<string>("sematiUrl")!;
-        _apiKey = configuration.GetValue<string>("_apiKey")!;
+        _sematiUrl = configuration.GetValue<string>("Semati:Url")!;
+        _apiKey = configuration.GetValue<string>("Semati:ApiKey")!;
     }
 
     public void ProcessTermination()
@@ -73,10 +74,11 @@ public class TerminationProcess
         try
         {
             SematiRequest activationRequest = GetSematiRequest(number);
+            using var _ = LogContext.PushProperty("OperatorTCN", activationRequest?.Operator?.OperatorTCN);
 
             var formattedRequest = JsonSerializer.Serialize(activationRequest, _jsonOptions);
 
-            _logger.LogInformation("Calling Semati for number {ID} (MSISDN={MSISDN}, RequestType={RequestType})", number.ID, number.MSISDN, activationRequest.RequestType);
+            _logger.LogInformation("Calling Semati for number {ID} (MSISDN={MSISDN}, RequestType={RequestType})", number.ID, number.MSISDN, activationRequest?.RequestType);
 
             var result = GetSematiServiceResponse(formattedRequest);
             number.SematiCode = result.ResponseCode;

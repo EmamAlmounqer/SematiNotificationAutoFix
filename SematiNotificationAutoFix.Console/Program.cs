@@ -17,6 +17,7 @@ builder.Services.AddDbContext<ActivationDbContext>(opts =>
         builder.Configuration.GetConnectionString("Default"),
         sqlOpts => sqlOpts.UseCompatibilityLevel(120)));
 
+builder.Services.AddScoped<TerminationProcess>();
 builder.Services.AddScoped<Fix606Process>();
 
 using var host = builder.Build();

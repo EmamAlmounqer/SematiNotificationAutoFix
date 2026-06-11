@@ -38,7 +38,7 @@ public class Fix606Process
             return;
         }
 
-        using var ___ = LogContext.PushProperty("Tcn", sematiNotificationAction.SematiUpdateTcn);
+        using var ___ = LogContext.PushProperty("UpdateTcn", sematiNotificationAction.SematiUpdateTcn);
 
         var sematiServiceCallLogs = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == sematiNotificationAction.SematiUpdateTcn);
         if (sematiServiceCallLogs is null || sematiServiceCallLogs.Code != 606)
