@@ -29,8 +29,8 @@ public static class LoggingExtensions
             connectionString: builder.Configuration.GetConnectionString("Logs"),
             sinkOptions: new MSSqlServerSinkOptions
             {
-                TableName = "Logs12",
-                AutoCreateSqlTable = true
+                TableName = "SematiNotificationAutoFixLog",
+                AutoCreateSqlTable = false
             },
             columnOptions: columnOptions);
 
