@@ -1,15 +1,18 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace SematiNotificationAutoFix.Console.Utils;
 
 public sealed class SqlAgentJobRunner
 {
     private readonly string _connectionString;
+    private readonly ILogger<SqlAgentJobRunner> _looger;
 
-    public SqlAgentJobRunner(IConfiguration configuration)
+    public SqlAgentJobRunner(IConfiguration configuration, ILogger<SqlAgentJobRunner> looger)
     {
         _connectionString = configuration.GetConnectionString("Default")!;
+        _looger = looger;
     }
 
     public async Task<JobOutcome> RunJobAndWaitAsync(
@@ -18,6 +21,7 @@ public sealed class SqlAgentJobRunner
         TimeSpan? pollInterval = null,
         CancellationToken ct = default)
     {
+        _looger.LogInformation("start job {jobName}, timeout: {timeout}, pollInterval {pollInterval}", jobName, timeout, pollInterval);
         pollInterval ??= TimeSpan.FromSeconds(15);
 
         await using var conn = new SqlConnection(_connectionString);
@@ -52,7 +56,10 @@ ORDER BY ja.run_requested_date DESC;";
             ct.ThrowIfCancellationRequested();
 
             if (DateTime.UtcNow - startedAtUtc > timeout)
+            {
+                _looger.LogInformation("Job '{jobName}' did not finish within {timeout}.", jobName, timeout);
                 throw new TimeoutException($"Job '{jobName}' did not finish within {timeout}.");
+            }
 
             await Task.Delay(pollInterval.Value, ct);
 
@@ -61,13 +68,15 @@ ORDER BY ja.run_requested_date DESC;";
 
             await using var reader = await poll.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
-                continue; // activity row not visible yet, keep waiting
+                continue;
 
             bool isRunning = reader.GetInt32(0) == 1;
             int? runStatus = reader.IsDBNull(1) ? null : reader.GetInt32(1);
+            _looger.LogTrace("job {jobName} runing, runStatus {runStatus}", jobName, runStatus);
 
             if (isRunning) continue;
 
+            _looger.LogInformation("job {jobName} ended, runStatus {runStatus}", jobName, runStatus);
             // stopped — interpret outcome
             return runStatus switch
             {
@@ -78,6 +87,7 @@ ORDER BY ja.run_requested_date DESC;";
                 _ => JobOutcome.Unknown
             };
         }
+
     }
 }
 
