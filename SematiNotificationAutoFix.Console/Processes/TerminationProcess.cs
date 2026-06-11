@@ -30,46 +30,6 @@ public class TerminationProcess
         _apiKey = configuration.GetValue<string>("Semati:ApiKey")!;
     }
 
-    public async Task ProcessTermination()
-    {
-        int pageSize = 4;
-        int totalPages = await _dbContext.SematiTerminateNumbers.CountAsync(t => !t.SematiCode.HasValue || t.SematiCode == -1) / pageSize + 1;
-
-        _logger.LogInformation("Starting termination — {Total} pages of {PageSize}", totalPages, pageSize);
-
-        for (int pageIndex = 0; pageIndex < totalPages; pageIndex++)
-        {
-            var page = await _dbContext.SematiTerminateNumbers
-                .Where(t => !t.SematiCode.HasValue || t.SematiCode == -1)
-                .OrderBy(t => t.ID)
-                .Skip(pageIndex * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            await ProcessTermination(page);
-        }
-
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save changes after processing batch");
-        }
-    }
-
-    public async Task ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumbers)
-    {
-        if (terminateNumbers == null || !terminateNumbers.Any())
-            return;
-
-        foreach (SematiTerminateNumber number in terminateNumbers)
-        {
-            await TerminateNumber(number);
-        }
-    }
-
     public async Task TerminateNumber(SematiTerminateNumber number)
     {
         try
