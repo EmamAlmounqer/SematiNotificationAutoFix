@@ -22,7 +22,11 @@ public class TerminationProcess
     {
         ServerCertificateCustomValidationCallback = (_, _, _, _) => true
     });
-    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
 
     public TerminationProcess(IConfiguration configuration, ActivationDbContext context, ILogger<TerminationProcess> logger)
     {

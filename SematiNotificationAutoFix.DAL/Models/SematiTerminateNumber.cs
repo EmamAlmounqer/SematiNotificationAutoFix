@@ -33,7 +33,7 @@ public partial class SematiTerminateNumber
 
     public bool? IsTerminatedByMistake { get; set; }
 
-    public int ProcessId { get; set; }
+    public int ProcessId { get; set; } = 1;
 
     public bool? AsPerNICRequest { get; set; }
 
