@@ -1,28 +1,28 @@
 ﻿using Microsoft.Extensions.Configuration;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Runtime;
-using System.Runtime.Serialization;
 using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SematiNotificationAutoFix.Console.Processes;
 
 public class TerminationProcess
 {
     private readonly ActivationDbContext _dbContext;
-    static string request = "{{\"person\":{{\"personId\":\"{0}\",\"IdType\":{1},\"nationality\":{5},\"fingerIndex\":0,\"fingerImage\":\"\",\"exceptionFlag\":0}},\"mobileNumber\":{{\"msisdn\":\"{2}\",\"simList\":{6},\"subscriptionType\":0,\"isDefault\":false,\"msisdnType\":\"{3}\",\"oldOwnerId\":\"\"}},\"operator\":{{ \"sourceId\":\"7001790299\",\"employeeUsername\":\"System\",\"employeeId\":\"1109272730\",\"deviceId\":null,\"operatorTCN\":\"{4}\",\"employeeIdType\":1,\"sourceType\":4,\"branchAddress\":\"Automated\",\"region\":\"00\"}},\"requestType\":{7},\"apiKey\":\"2047600105301466696j01l8qZq9ttXjv0RylU/wP3mpGU0s0LFE85EYRg+Ouo=\",\"DealerCode\":\"System\",\"Channel\":\"DST\"}}";
-    static string simListFormat = "[{\"iccid\":\"{1}\",\"imsi\":\"{0}\"}]";
+    private readonly string _apiKey;
     private readonly string _sematiUrl;
+    private static readonly HttpClient _httpClient = new(new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+    });
+    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     public TerminationProcess(IConfiguration configuration, ActivationDbContext context)
     {
         _dbContext = context;
         _sematiUrl = configuration.GetValue<string>("sematiUrl")!;
+        _apiKey = configuration.GetValue<string>("_apiKey")!;
     }
 
     public void ProcessTermination()
@@ -40,52 +40,67 @@ public class TerminationProcess
         }
     }
 
-    public void ProcessTermination(IEnumerable<SematiTerminateNumber> numberListPage)
+    public void ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumber)
     {
-        string formattedRequest = string.Empty;
-        NotifyCustomerActionResponse objResponse = null;
-        string errorMessage = string.Empty;
-        string response = string.Empty;
+        string formattedRequest;
 
-        if (numberListPage != null && numberListPage.Count() > 0)
+        if (terminateNumber != null && terminateNumber.Any())
         {
-            foreach (SematiTerminateNumber number in numberListPage)
+            foreach (SematiTerminateNumber number in terminateNumber)
             {
                 try
                 {
-                    string requestType = number.ProcessId == (int)SematiProcess.Termination ? ((int)RequestType.TerminateActivation).ToString() : ((int)RequestType.CancelSIM).ToString();
+                    int reqType = number.ProcessId == (int)SematiProcess.Termination ? (int)RequestType.TerminateActivation : (int)RequestType.CancelSIM;
                     number.OperatorTCN = Guid.NewGuid().ToString();
 
-                    string simList = string.IsNullOrWhiteSpace(number.ICCID) ? "null" : string.Format(simListFormat, number.IMSI, number.ICCID);
-                    formattedRequest = string.Format(request, number.IDNumber, number.IDTypeID, number.MSISDN, number.SubscriptionType, number.OperatorTCN, number.NationalityID.HasValue ? number.NationalityID : 0, simList, requestType);
-                    //lblId.Text = number.ID.ToString();
-                    int errorCode = GetSematiServiceResponse(formattedRequest, out objResponse, out errorMessage, out response);
-                    number.SematiCode = errorCode;
-                    number.ExecutionTime = DateTime.Now;
-                    number.TCN = objResponse != null ? objResponse.tcn : null;
-
-                    //if (errorCode == 600)
+                    var activationRequest = new ActivationRequest
                     {
-                        string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
-                        AddToSematiServiceLog(formattedRequest, objResponse, "NotifyCustomerAction", requestTypeText, (string.IsNullOrWhiteSpace(errorMessage) ? response : errorMessage));
-                        //context.SaveChanges();
-                    }
+                        Person = new PersonInfo
+                        {
+                            PersonId = number.IDNumber,
+                            IdType = number.IDTypeID ?? 0,
+                            Nationality = number.NationalityID ?? 0
+                        },
+                        MobileNumber = new MobileNumberInfo
+                        {
+                            Msisdn = number.MSISDN,
+                            MsisdnType = number.SubscriptionType,
+                            SimList = string.IsNullOrWhiteSpace(number.ICCID) ? null : new List<SimInfo> { new SimInfo { Iccid = number.ICCID, Imsi = number.IMSI } }
+                        },
+                        Operator = new OperatorInfo
+                        {
+                            OperatorTCN = number.OperatorTCN
+                        },
+                        RequestType = reqType,
+                        ApiKey = _apiKey
+                    };
+
+                    formattedRequest = JsonSerializer.Serialize(activationRequest, _jsonOptions);
+                    var result = GetSematiServiceResponse(formattedRequest);
+                    number.SematiCode = result.ResponseCode;
+                    number.ExecutionTime = DateTime.Now;
+                    number.TCN = result.ObjResponse?.Tcn;
+
+
+                    string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
+                    AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, (string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage));
+                    //context.SaveChanges();
 
                     try
                     {
                         //File.AppendAllText(logFile, number.ID + " - Ended " + errorCode + Environment.NewLine + Environment.NewLine);
                     }
-                    catch (Exception ex1)
+                    catch (Exception)
                     {
                     }
                 }
-                catch (Exception ex)
+                catch (Exception )
                 {
                     try
                     {
                         //File.AppendAllText(logFile, number.ID + " " + ex.Message + " " + ex.StackTrace);
                     }
-                    catch (Exception ex1)
+                    catch (Exception )
                     {
                         number.SematiCode = null;
                         number.ExecutionTime = null;
@@ -96,79 +111,57 @@ public class TerminationProcess
             {
                 _dbContext.SaveChanges();
             }
-            catch (Exception ex1)
+            catch (Exception )
             {
             }
         }
     }
 
 
-    private int GetSematiServiceResponse(string request, out NotifyCustomerActionResponse objResponse, out string errorMessage, out string response)
+    private SematiServiceResult GetSematiServiceResponse(string request)
     {
-        var httpWebRequest = (HttpWebRequest)WebRequest.Create(_sematiUrl);
-        response = string.Empty;
-        int responseCode;
-        httpWebRequest.ContentType = "application/json";
-        httpWebRequest.Method = "POST";
-        httpWebRequest.Proxy = null;
-        objResponse = null;
-        errorMessage = string.Empty;
+        var result = new SematiServiceResult();
 
         try
         {
-            System.Net.ServicePointManager.Expect100Continue = false;
+            var content = new StringContent(request, Encoding.UTF8, "application/json");
+            var httpResponse = _httpClient.PostAsync(_sematiUrl, content).GetAwaiter().GetResult();
+            result.Response = httpResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
 
-            using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
+            result.ResponseCode = 600;
+            if (!string.IsNullOrWhiteSpace(result.Response))
             {
-                streamWriter.Write(request);
-                streamWriter.Flush();
-                streamWriter.Close();
-            }
-
-            System.Net.ServicePointManager.ServerCertificateValidationCallback = (senderX, certificate, chain, sslPolicyErrors) => { return true; };
-            var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-            using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
-            {
-                response = streamReader.ReadToEnd();
-            }
-
-            httpResponse.Close();
-
-            responseCode = 600;
-            if (!string.IsNullOrWhiteSpace(response))
-            {
-                //objResponse = new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<NotifyCustomerActionResponse>(response);
-                responseCode = objResponse.code;
+                result.ObjResponse = JsonSerializer.Deserialize<NotifyCustomerActionResponse>(result.Response, _jsonOptions);
+                result.ResponseCode = result.ObjResponse?.Code ?? -1;
             }
             else
             {
-                responseCode = -1;
+                result.ResponseCode = -1;
             }
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            result.ErrorMessage = ex.Message;
             //System.IO.File.AppendAllText(sematiLogFile, "Request: " + request + "  MEssage: " + ex.Message + Environment.NewLine + "Stack Trace: " + ex.StackTrace);
-            responseCode = -1;
+            result.ResponseCode = -1;
         }
 
-        return responseCode;
+        return result;
     }
 
-    internal void AddToSematiServiceLog(string requestText, BaseResponse objResponse, string operation, string requestType, string apiCallResponse)
+    internal void AddToSematiServiceLog(string requestText, BaseResponse? objResponse, string operation, string requestType, string apiCallResponse)
     {
-        SematiServiceCallLog objSematiServiceCallLog = null;
         try
         {
             string responseText = apiCallResponse;
-            objSematiServiceCallLog = new SematiServiceCallLog()
+            var objSematiServiceCallLog = new SematiServiceCallLog()
             {
-                Code = objResponse.code,
+                Code = objResponse?.Code ?? -1,
                 Operation = operation,
                 RequestText = requestText,
                 ResponseText = responseText,
                 RequestType = requestType,
-                TCN = objResponse.tcn,
+                TCN = objResponse?.Tcn,
                 Url = _sematiUrl,
                 Timestamp = DateTime.Now,
                 DealerCode = "System",
@@ -178,9 +171,9 @@ public class TerminationProcess
              _dbContext.SematiServiceCallLogs.Add(objSematiServiceCallLog);
             _dbContext.SaveChanges();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            string logContent = string.Format("Request:{1}{0}{1}{1}Response:{1}{2}{1}{1}Error Message:{3}", requestText, Environment.NewLine, objResponse, ex.Message);
+            // string logContent = string.Format("Request:{1}{0}{1}{1}Response:{1}{2}{1}{1}Error Message:{3}", requestText, Environment.NewLine, objResponse, ex.Message);
             //try
             //{
             //    if (!File.Exists(sematiLogFile))
@@ -202,36 +195,55 @@ public class TerminationProcess
 
 public class NotifyCustomerActionResponse : BaseResponse
 {
-    public PersonResponse person { get; set; }
+    [JsonPropertyName("person")]
+    public PersonResponse? Person { get; set; }
 }
 
 public class BaseResponse
 {
-    public string tcn { get; set; }
-    public int code { get; set; }
-    public string message { get; set; }
-    internal string ErrorCode { get; set; }
+    [JsonPropertyName("tcn")]
+    public string? Tcn { get; set; }
+    [JsonPropertyName("code")]
+    public int Code { get; set; }
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+    internal string? ErrorCode { get; set; }
 }
 
-[DataContract]
 public class PersonResponse
 {
-    public string first { get; set; }
-    public string father { get; set; }
-    public string grandfather { get; set; }
-    public string family { get; set; }
-    public string trFirst { get; set; }
-    public string trFather { get; set; }
-    public string trGrandfather { get; set; }
-    public string trFamily { get; set; }
-    public string gender { get; set; }
-    public string maritalStatus { get; set; }
-    public string idExpiryDate { get; set; }
-    public int nationality { get; set; }
-    public string birthdate { get; set; }
-    public string idIssueDate { get; set; }
-    public int occupation { get; set; }
-    public long sponsor { get; set; }
+    [JsonPropertyName("first")]
+    public string? First { get; set; }
+    [JsonPropertyName("father")]
+    public string? Father { get; set; }
+    [JsonPropertyName("grandfather")]
+    public string? Grandfather { get; set; }
+    [JsonPropertyName("family")]
+    public string? Family { get; set; }
+    [JsonPropertyName("trFirst")]
+    public string? TrFirst { get; set; }
+    [JsonPropertyName("trFather")]
+    public string? TrFather { get; set; }
+    [JsonPropertyName("trGrandfather")]
+    public string? TrGrandfather { get; set; }
+    [JsonPropertyName("trFamily")]
+    public string? TrFamily { get; set; }
+    [JsonPropertyName("gender")]
+    public string? Gender { get; set; }
+    [JsonPropertyName("maritalStatus")]
+    public string? MaritalStatus { get; set; }
+    [JsonPropertyName("idExpiryDate")]
+    public string? IdExpiryDate { get; set; }
+    [JsonPropertyName("nationality")]
+    public int Nationality { get; set; }
+    [JsonPropertyName("birthdate")]
+    public string? Birthdate { get; set; }
+    [JsonPropertyName("idIssueDate")]
+    public string? IdIssueDate { get; set; }
+    [JsonPropertyName("occupation")]
+    public int Occupation { get; set; }
+    [JsonPropertyName("sponsor")]
+    public long Sponsor { get; set; }
 }
 
 public enum SematiProcess : int
@@ -244,18 +256,18 @@ public enum SematiProcess : int
 
 public class ActivationRequest
 {
-    public PersonInfo Person { get; set; }
-    public MobileNumberInfo MobileNumber { get; set; }
-    public OperatorInfo Operator { get; set; }
+    public PersonInfo? Person { get; set; }
+    public MobileNumberInfo? MobileNumber { get; set; }
+    public OperatorInfo? Operator { get; set; }
     public int RequestType { get; set; }
-    public string ApiKey { get; set; }
+    public string? ApiKey { get; set; }
     public string DealerCode { get; set; } = "System";
     public string Channel { get; set; } = "DST";
 }
 
 public class PersonInfo
 {
-    public string PersonId { get; set; }
+    public string? PersonId { get; set; }
     public int IdType { get; set; }
     public int Nationality { get; set; }
     public int FingerIndex { get; set; } = 0;
@@ -265,18 +277,18 @@ public class PersonInfo
 
 public class MobileNumberInfo
 {
-    public string Msisdn { get; set; }
-    public List<SimInfo> SimList { get; set; }   // strongly-typed instead of pre-serialized string
+    public string? Msisdn { get; set; }
+    public List<SimInfo>? SimList { get; set; }
     public int SubscriptionType { get; set; } = 0;
     public bool IsDefault { get; set; } = false;
-    public string MsisdnType { get; set; }
+    public string? MsisdnType { get; set; }
     public string OldOwnerId { get; set; } = "";
 }
 
 public class SimInfo
 {
-    public string Iccid { get; set; }
-    public string Imsi { get; set; }
+    public string? Iccid { get; set; }
+    public string? Imsi { get; set; }
 }
 
 public class OperatorInfo
@@ -284,8 +296,8 @@ public class OperatorInfo
     public string SourceId { get; set; } = "7001790299";
     public string EmployeeUsername { get; set; } = "System";
     public string EmployeeId { get; set; } = "1109272730";
-    public string DeviceId { get; set; }
-    public string OperatorTCN { get; set; }
+    public string? DeviceId { get; set; }
+    public string? OperatorTCN { get; set; }
     public int EmployeeIdType { get; set; } = 1;
     public int SourceType { get; set; } = 4;
     public string BranchAddress { get; set; } = "Automated";
@@ -302,4 +314,12 @@ public enum RequestType
     CancelSIM = 5,
     ChangeSubscriptionType = 6,
     TransferOwner = 17
+}
+
+public class SematiServiceResult
+{
+    public int ResponseCode { get; set; } = -1;
+    public NotifyCustomerActionResponse? ObjResponse { get; set; }
+    public string ErrorMessage { get; set; } = string.Empty;
+    public string Response { get; set; } = string.Empty;
 }
