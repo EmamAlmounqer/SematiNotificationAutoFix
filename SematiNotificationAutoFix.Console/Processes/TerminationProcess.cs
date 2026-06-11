@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
 using System.Text;
@@ -10,6 +11,7 @@ namespace SematiNotificationAutoFix.Console.Processes;
 public class TerminationProcess
 {
     private readonly ActivationDbContext _dbContext;
+    private readonly ILogger<TerminationProcess> _logger;
     private readonly string _apiKey;
     private readonly string _sematiUrl;
     private static readonly HttpClient _httpClient = new(new HttpClientHandler
@@ -18,9 +20,10 @@ public class TerminationProcess
     });
     private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public TerminationProcess(IConfiguration configuration, ActivationDbContext context)
+    public TerminationProcess(IConfiguration configuration, ActivationDbContext context, ILogger<TerminationProcess> logger)
     {
         _dbContext = context;
+        _logger = logger;
         _sematiUrl = configuration.GetValue<string>("sematiUrl")!;
         _apiKey = configuration.GetValue<string>("_apiKey")!;
     }
@@ -30,90 +33,83 @@ public class TerminationProcess
         int pageSize = 4;
         int totalPages = _dbContext.SematiTerminateNumbers.Count(t => !t.SematiCode.HasValue || t.SematiCode == -1) / pageSize + 1;
 
-        if (totalPages > 0)
+        _logger.LogInformation("Starting termination — {Total} pages of {PageSize}", totalPages, pageSize);
+
+        for (int pageIndex = 0; pageIndex < totalPages; pageIndex++)
         {
-            for (int pageIndex = 0; pageIndex < totalPages; pageIndex++)
-            {
-                IEnumerable<SematiTerminateNumber> numberListPage = _dbContext.SematiTerminateNumbers.Where(t => (!t.SematiCode.HasValue || t.SematiCode == -1)).OrderBy(t => t.ID).Skip(pageIndex * pageSize).Take(pageSize);
-                ProcessTermination(numberListPage);
-            }
+            var page = _dbContext.SematiTerminateNumbers
+                .Where(t => !t.SematiCode.HasValue || t.SematiCode == -1)
+                .OrderBy(t => t.ID)
+                .Skip(pageIndex * pageSize)
+                .Take(pageSize);
+
+            ProcessTermination(page);
         }
     }
 
-    public void ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumber)
+    public void ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumbers)
     {
-        string formattedRequest;
+        if (terminateNumbers == null || !terminateNumbers.Any())
+            return;
 
-        if (terminateNumber != null && terminateNumber.Any())
+        foreach (SematiTerminateNumber number in terminateNumbers)
         {
-            foreach (SematiTerminateNumber number in terminateNumber)
-            {
-                try
-                {
-                    int reqType = number.ProcessId == (int)SematiProcess.Termination ? (int)RequestType.TerminateActivation : (int)RequestType.CancelSIM;
-                    number.OperatorTCN = Guid.NewGuid().ToString();
-
-                    var activationRequest = new ActivationRequest
-                    {
-                        Person = new PersonInfo
-                        {
-                            PersonId = number.IDNumber,
-                            IdType = number.IDTypeID ?? 0,
-                            Nationality = number.NationalityID ?? 0
-                        },
-                        MobileNumber = new MobileNumberInfo
-                        {
-                            Msisdn = number.MSISDN,
-                            MsisdnType = number.SubscriptionType,
-                            SimList = string.IsNullOrWhiteSpace(number.ICCID) ? null : new List<SimInfo> { new SimInfo { Iccid = number.ICCID, Imsi = number.IMSI } }
-                        },
-                        Operator = new OperatorInfo
-                        {
-                            OperatorTCN = number.OperatorTCN
-                        },
-                        RequestType = reqType,
-                        ApiKey = _apiKey
-                    };
-
-                    formattedRequest = JsonSerializer.Serialize(activationRequest, _jsonOptions);
-                    var result = GetSematiServiceResponse(formattedRequest);
-                    number.SematiCode = result.ResponseCode;
-                    number.ExecutionTime = DateTime.Now;
-                    number.TCN = result.ObjResponse?.Tcn;
-
-
-                    string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
-                    AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, (string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage));
-                    //context.SaveChanges();
-
-                    try
-                    {
-                        //File.AppendAllText(logFile, number.ID + " - Ended " + errorCode + Environment.NewLine + Environment.NewLine);
-                    }
-                    catch (Exception)
-                    {
-                    }
-                }
-                catch (Exception )
-                {
-                    try
-                    {
-                        //File.AppendAllText(logFile, number.ID + " " + ex.Message + " " + ex.StackTrace);
-                    }
-                    catch (Exception )
-                    {
-                        number.SematiCode = null;
-                        number.ExecutionTime = null;
-                    }
-                }
-            }
             try
             {
-                _dbContext.SaveChanges();
+                int reqType = number.ProcessId == (int)SematiProcess.Termination ? (int)RequestType.TerminateActivation : (int)RequestType.CancelSIM;
+                number.OperatorTCN = Guid.NewGuid().ToString();
+
+                var activationRequest = new ActivationRequest
+                {
+                    Person = new PersonInfo
+                    {
+                        PersonId = number.IDNumber,
+                        IdType = number.IDTypeID ?? 0,
+                        Nationality = number.NationalityID ?? 0
+                    },
+                    MobileNumber = new MobileNumberInfo
+                    {
+                        Msisdn = number.MSISDN,
+                        MsisdnType = number.SubscriptionType,
+                        SimList = string.IsNullOrWhiteSpace(number.ICCID) ? null : [new() { Iccid = number.ICCID, Imsi = number.IMSI }]
+                    },
+                    Operator = new OperatorInfo
+                    {
+                        OperatorTCN = number.OperatorTCN
+                    },
+                    RequestType = reqType,
+                    ApiKey = _apiKey
+                };
+
+                var formattedRequest = JsonSerializer.Serialize(activationRequest, _jsonOptions);
+
+                _logger.LogInformation("Calling Semati for number {ID} (MSISDN={MSISDN}, RequestType={RequestType})", number.ID, number.MSISDN, reqType);
+
+                var result = GetSematiServiceResponse(formattedRequest);
+                number.SematiCode = result.ResponseCode;
+                number.ExecutionTime = DateTime.Now;
+                number.TCN = result.ObjResponse?.Tcn;
+
+                _logger.LogInformation("Semati response for number {ID}: code={Code}, TCN={TCN}", number.ID, result.ResponseCode, number.TCN);
+
+                string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
+                AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage);
             }
-            catch (Exception )
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to process number {ID} (MSISDN={MSISDN})", number.ID, number.MSISDN);
+                number.SematiCode = null;
+                number.ExecutionTime = null;
             }
+        }
+
+        try
+        {
+            _dbContext.SaveChanges();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save changes after processing batch");
         }
     }
 
@@ -128,7 +124,6 @@ public class TerminationProcess
             var httpResponse = _httpClient.PostAsync(_sematiUrl, content).GetAwaiter().GetResult();
             result.Response = httpResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
 
-            result.ResponseCode = 600;
             if (!string.IsNullOrWhiteSpace(result.Response))
             {
                 result.ObjResponse = JsonSerializer.Deserialize<NotifyCustomerActionResponse>(result.Response, _jsonOptions);
@@ -136,13 +131,14 @@ public class TerminationProcess
             }
             else
             {
+                _logger.LogWarning("Empty response from Semati API");
                 result.ResponseCode = -1;
             }
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "HTTP call to Semati API failed");
             result.ErrorMessage = ex.Message;
-            //System.IO.File.AppendAllText(sematiLogFile, "Request: " + request + "  MEssage: " + ex.Message + Environment.NewLine + "Stack Trace: " + ex.StackTrace);
             result.ResponseCode = -1;
         }
 
@@ -153,41 +149,24 @@ public class TerminationProcess
     {
         try
         {
-            string responseText = apiCallResponse;
-            var objSematiServiceCallLog = new SematiServiceCallLog()
+            _dbContext.SematiServiceCallLogs.Add(new SematiServiceCallLog
             {
                 Code = objResponse?.Code ?? -1,
                 Operation = operation,
                 RequestText = requestText,
-                ResponseText = responseText,
+                ResponseText = apiCallResponse,
                 RequestType = requestType,
                 TCN = objResponse?.Tcn,
                 Url = _sematiUrl,
                 Timestamp = DateTime.Now,
                 DealerCode = "System",
                 Channel = "TerminationTool"
-            };
-
-             _dbContext.SematiServiceCallLogs.Add(objSematiServiceCallLog);
+            });
             _dbContext.SaveChanges();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // string logContent = string.Format("Request:{1}{0}{1}{1}Response:{1}{2}{1}{1}Error Message:{3}", requestText, Environment.NewLine, objResponse, ex.Message);
-            //try
-            //{
-            //    if (!File.Exists(sematiLogFile))
-            //    {
-            //        File.Create(sematiLogFile);
-            //        File.AppendAllText(sematiLogFile, logContent);
-            //    }
-            //}
-            //catch
-            //{
-            //    File.AppendAllText(logFile, logContent);
-            //    // Do Nothing.
-            //}
-
+            _logger.LogError(ex, "Failed to save service call log (Operation={Operation}, TCN={TCN})", operation, objResponse?.Tcn);
         }
     }
 }
