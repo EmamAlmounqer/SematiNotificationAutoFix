@@ -45,63 +45,6 @@ public class TerminationProcess
 
             ProcessTermination(page);
         }
-    }
-
-    public void ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumbers)
-    {
-        if (terminateNumbers == null || !terminateNumbers.Any())
-            return;
-
-        foreach (SematiTerminateNumber number in terminateNumbers)
-        {
-            try
-            {
-                int reqType = number.ProcessId == (int)SematiProcess.Termination ? (int)RequestType.TerminateActivation : (int)RequestType.CancelSIM;
-                number.OperatorTCN = Guid.NewGuid().ToString();
-
-                var activationRequest = new ActivationRequest
-                {
-                    Person = new PersonInfo
-                    {
-                        PersonId = number.IDNumber,
-                        IdType = number.IDTypeID ?? 0,
-                        Nationality = number.NationalityID ?? 0
-                    },
-                    MobileNumber = new MobileNumberInfo
-                    {
-                        Msisdn = number.MSISDN,
-                        MsisdnType = number.SubscriptionType,
-                        SimList = string.IsNullOrWhiteSpace(number.ICCID) ? null : [new() { Iccid = number.ICCID, Imsi = number.IMSI }]
-                    },
-                    Operator = new OperatorInfo
-                    {
-                        OperatorTCN = number.OperatorTCN
-                    },
-                    RequestType = reqType,
-                    ApiKey = _apiKey
-                };
-
-                var formattedRequest = JsonSerializer.Serialize(activationRequest, _jsonOptions);
-
-                _logger.LogInformation("Calling Semati for number {ID} (MSISDN={MSISDN}, RequestType={RequestType})", number.ID, number.MSISDN, reqType);
-
-                var result = GetSematiServiceResponse(formattedRequest);
-                number.SematiCode = result.ResponseCode;
-                number.ExecutionTime = DateTime.Now;
-                number.TCN = result.ObjResponse?.Tcn;
-
-                _logger.LogInformation("Semati response for number {ID}: code={Code}, TCN={TCN}", number.ID, result.ResponseCode, number.TCN);
-
-                string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
-                AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process number {ID} (MSISDN={MSISDN})", number.ID, number.MSISDN);
-                number.SematiCode = null;
-                number.ExecutionTime = null;
-            }
-        }
 
         try
         {
@@ -112,6 +55,47 @@ public class TerminationProcess
             _logger.LogError(ex, "Failed to save changes after processing batch");
         }
     }
+
+    public void ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumbers)
+    {
+        if (terminateNumbers == null || !terminateNumbers.Any())
+            return;
+
+        foreach (SematiTerminateNumber number in terminateNumbers)
+        {
+            TerminateNumber(number);
+        }
+
+    }
+
+    public void TerminateNumber(SematiTerminateNumber number)
+    {
+        try
+        {
+            SematiRequest activationRequest = GetSematiRequest(number);
+
+            var formattedRequest = JsonSerializer.Serialize(activationRequest, _jsonOptions);
+
+            _logger.LogInformation("Calling Semati for number {ID} (MSISDN={MSISDN}, RequestType={RequestType})", number.ID, number.MSISDN, activationRequest.RequestType);
+
+            var result = GetSematiServiceResponse(formattedRequest);
+            number.SematiCode = result.ResponseCode;
+            number.ExecutionTime = DateTime.Now;
+            number.TCN = result.ObjResponse?.Tcn;
+
+            _logger.LogInformation("Semati response for number {ID}: code={Code}, TCN={TCN}", number.ID, result.ResponseCode, number.TCN);
+
+            string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
+            AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to process number {ID} (MSISDN={MSISDN})", number.ID, number.MSISDN);
+            number.SematiCode = null;
+            number.ExecutionTime = null;
+        }
+    }
+
 
 
     private SematiServiceResult GetSematiServiceResponse(string request)
@@ -145,7 +129,7 @@ public class TerminationProcess
         return result;
     }
 
-    internal void AddToSematiServiceLog(string requestText, BaseResponse? objResponse, string operation, string requestType, string apiCallResponse)
+    private void AddToSematiServiceLog(string requestText, BaseResponse? objResponse, string operation, string requestType, string apiCallResponse)
     {
         try
         {
@@ -169,8 +153,36 @@ public class TerminationProcess
             _logger.LogError(ex, "Failed to save service call log (Operation={Operation}, TCN={TCN})", operation, objResponse?.Tcn);
         }
     }
-}
 
+    private SematiRequest GetSematiRequest(SematiTerminateNumber number)
+    {
+        int reqType = number.ProcessId == (int)SematiProcess.Termination ? (int)RequestType.TerminateActivation : (int)RequestType.CancelSIM;
+        number.OperatorTCN = Guid.NewGuid().ToString();
+
+        var activationRequest = new SematiRequest
+        {
+            Person = new PersonInfo
+            {
+                PersonId = number.IDNumber,
+                IdType = number.IDTypeID ?? 0,
+                Nationality = number.NationalityID ?? 0
+            },
+            MobileNumber = new MobileNumberInfo
+            {
+                Msisdn = number.MSISDN,
+                MsisdnType = number.SubscriptionType,
+                SimList = string.IsNullOrWhiteSpace(number.ICCID) ? null : [new() { Iccid = number.ICCID, Imsi = number.IMSI }]
+            },
+            Operator = new OperatorInfo
+            {
+                OperatorTCN = number.OperatorTCN
+            },
+            RequestType = reqType,
+            ApiKey = _apiKey
+        };
+        return activationRequest;
+    }
+}
 
 public class NotifyCustomerActionResponse : BaseResponse
 {
@@ -233,7 +245,7 @@ public enum SematiProcess : int
 
 }
 
-public class ActivationRequest
+public class SematiRequest
 {
     public PersonInfo? Person { get; set; }
     public MobileNumberInfo? MobileNumber { get; set; }

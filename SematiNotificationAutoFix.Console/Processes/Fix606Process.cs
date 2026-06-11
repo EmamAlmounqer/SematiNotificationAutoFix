@@ -13,12 +13,14 @@ public class Fix606Process
 {
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<Fix606Process> _logger;
+    private readonly TerminationProcess _terminationProcess;
     private readonly int _sematiServiceCallLogCutOffId;
 
-    public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger)
+    public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _terminationProcess = terminationProcess;
         _sematiServiceCallLogCutOffId = configuration.GetValue<int>("SematiServiceCallLogCutOffId");
     }
 
@@ -60,16 +62,19 @@ public class Fix606Process
 
         foreach (var number in pendingNumbers)
         {
-            numberToBeTerminated.Add(new SematiTerminateNumber
+            var terminateNumber = new SematiTerminateNumber
             {
                 MSISDN = number,
                 IDNumber = personId,
                 IDTypeID = GetIdTypeID(personId),
-                SematiCode = -1,
+                SematiCode = -2,
                 NationalityID = 113,
                 SubscriptionType = "V"
-            });
+            };
 
+            _terminationProcess.TerminateNumber(terminateNumber);
+
+            numberToBeTerminated.Add(terminateNumber);
             _logger.LogInformation("Add {MSISDN} terminate numbers for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);
         }
 
