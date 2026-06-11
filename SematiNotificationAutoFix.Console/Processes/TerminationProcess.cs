@@ -16,6 +16,8 @@ public class TerminationProcess
     private readonly ILogger<TerminationProcess> _logger;
     private readonly string _apiKey;
     private readonly string _sematiUrl;
+    private readonly string _sourceId;
+    private readonly string _employeeId;
     private static readonly HttpClient _httpClient = new(new HttpClientHandler
     {
         ServerCertificateCustomValidationCallback = (_, _, _, _) => true
@@ -28,6 +30,8 @@ public class TerminationProcess
         _logger = logger;
         _sematiUrl = configuration.GetValue<string>("Semati:Url")!;
         _apiKey = configuration.GetValue<string>("Semati:ApiKey")!;
+        _sourceId = configuration.GetValue<string>("Semati:SourceId")!;
+        _employeeId = configuration.GetValue<string>("Semati:EmployeeId")!;
     }
 
     public async Task TerminateNumber(SematiTerminateNumber number)
@@ -136,7 +140,9 @@ public class TerminationProcess
             },
             Operator = new OperatorInfo
             {
-                OperatorTCN = number.OperatorTCN
+                OperatorTCN = number.OperatorTCN,
+                SourceId = _sourceId,
+                EmployeeId = _employeeId
             },
             RequestType = reqType,
             ApiKey = _apiKey
@@ -208,51 +214,81 @@ public enum SematiProcess : int
 
 public class SematiRequest
 {
+    [JsonPropertyName("person")]
     public PersonInfo? Person { get; set; }
+    [JsonPropertyName("mobileNumber")]
     public MobileNumberInfo? MobileNumber { get; set; }
+    [JsonPropertyName("operator")]
     public OperatorInfo? Operator { get; set; }
+    [JsonPropertyName("requestType")]
     public int RequestType { get; set; }
+    [JsonPropertyName("apiKey")]
     public string? ApiKey { get; set; }
+    [JsonPropertyName("DealerCode")]
     public string DealerCode { get; set; } = "System";
+    [JsonPropertyName("Channel")]
     public string Channel { get; set; } = "DST";
 }
 
 public class PersonInfo
 {
+    [JsonPropertyName("personId")]
     public string? PersonId { get; set; }
+    [JsonPropertyName("IdType")]
     public int IdType { get; set; }
+    [JsonPropertyName("nationality")]
     public int Nationality { get; set; }
+    [JsonPropertyName("fingerIndex")]
     public int FingerIndex { get; set; } = 0;
+    [JsonPropertyName("fingerImage")]
     public string FingerImage { get; set; } = "";
+    [JsonPropertyName("exceptionFlag")]
     public int ExceptionFlag { get; set; } = 0;
 }
 
 public class MobileNumberInfo
 {
+    [JsonPropertyName("msisdn")]
     public string? Msisdn { get; set; }
+    [JsonPropertyName("simList")]
     public List<SimInfo>? SimList { get; set; }
+    [JsonPropertyName("subscriptionType")]
     public int SubscriptionType { get; set; } = 0;
+    [JsonPropertyName("isDefault")]
     public bool IsDefault { get; set; } = false;
+    [JsonPropertyName("msisdnType")]
     public string? MsisdnType { get; set; }
+    [JsonPropertyName("oldOwnerId")]
     public string OldOwnerId { get; set; } = "";
 }
 
 public class SimInfo
 {
+    [JsonPropertyName("iccid")]
     public string? Iccid { get; set; }
+    [JsonPropertyName("imsi")]
     public string? Imsi { get; set; }
 }
 
 public class OperatorInfo
 {
+    [JsonPropertyName("sourceId")]
     public string SourceId { get; set; } = "7001790299";
+    [JsonPropertyName("employeeUsername")]
     public string EmployeeUsername { get; set; } = "System";
+    [JsonPropertyName("employeeId")]
     public string EmployeeId { get; set; } = "1109272730";
+    [JsonPropertyName("deviceId")]
     public string? DeviceId { get; set; }
+    [JsonPropertyName("operatorTCN")]
     public string? OperatorTCN { get; set; }
+    [JsonPropertyName("employeeIdType")]
     public int EmployeeIdType { get; set; } = 1;
+    [JsonPropertyName("sourceType")]
     public int SourceType { get; set; } = 4;
+    [JsonPropertyName("branchAddress")]
     public string BranchAddress { get; set; } = "Automated";
+    [JsonPropertyName("region")]
     public string Region { get; set; } = "00";
 }
 
