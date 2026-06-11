@@ -72,7 +72,7 @@ public class Fix606Process
                 SubscriptionType = "V"
             };
 
-            _terminationProcess.TerminateNumber(terminateNumber);
+            await _terminationProcess.TerminateNumber(terminateNumber);
 
             numberToBeTerminated.Add(terminateNumber);
             _logger.LogInformation("Add {MSISDN} terminate numbers for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);

@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
@@ -29,27 +30,28 @@ public class TerminationProcess
         _apiKey = configuration.GetValue<string>("Semati:ApiKey")!;
     }
 
-    public void ProcessTermination()
+    public async Task ProcessTermination()
     {
         int pageSize = 4;
-        int totalPages = _dbContext.SematiTerminateNumbers.Count(t => !t.SematiCode.HasValue || t.SematiCode == -1) / pageSize + 1;
+        int totalPages = await _dbContext.SematiTerminateNumbers.CountAsync(t => !t.SematiCode.HasValue || t.SematiCode == -1) / pageSize + 1;
 
         _logger.LogInformation("Starting termination — {Total} pages of {PageSize}", totalPages, pageSize);
 
         for (int pageIndex = 0; pageIndex < totalPages; pageIndex++)
         {
-            var page = _dbContext.SematiTerminateNumbers
+            var page = await _dbContext.SematiTerminateNumbers
                 .Where(t => !t.SematiCode.HasValue || t.SematiCode == -1)
                 .OrderBy(t => t.ID)
                 .Skip(pageIndex * pageSize)
-                .Take(pageSize);
+                .Take(pageSize)
+                .ToListAsync();
 
-            ProcessTermination(page);
+            await ProcessTermination(page);
         }
 
         try
         {
-            _dbContext.SaveChanges();
+            await _dbContext.SaveChangesAsync();
         }
         catch (Exception ex)
         {
@@ -57,19 +59,18 @@ public class TerminationProcess
         }
     }
 
-    public void ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumbers)
+    public async Task ProcessTermination(IEnumerable<SematiTerminateNumber> terminateNumbers)
     {
         if (terminateNumbers == null || !terminateNumbers.Any())
             return;
 
         foreach (SematiTerminateNumber number in terminateNumbers)
         {
-            TerminateNumber(number);
+            await TerminateNumber(number);
         }
-
     }
 
-    public void TerminateNumber(SematiTerminateNumber number)
+    public async Task TerminateNumber(SematiTerminateNumber number)
     {
         try
         {
@@ -80,7 +81,7 @@ public class TerminationProcess
 
             _logger.LogInformation("Calling Semati for number {ID} (MSISDN={MSISDN}, RequestType={RequestType})", number.ID, number.MSISDN, activationRequest?.RequestType);
 
-            var result = GetSematiServiceResponse(formattedRequest);
+            var result = await GetSematiServiceResponse(formattedRequest);
             number.SematiCode = result.ResponseCode;
             number.ExecutionTime = DateTime.Now;
             number.TCN = result.ObjResponse?.Tcn;
@@ -88,7 +89,7 @@ public class TerminationProcess
             _logger.LogInformation("Semati response for number {ID}: code={Code}, TCN={TCN}", number.ID, result.ResponseCode, number.TCN);
 
             string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
-            AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage);
+            await AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage);
         }
         catch (Exception ex)
         {
@@ -98,17 +99,15 @@ public class TerminationProcess
         }
     }
 
-
-
-    private SematiServiceResult GetSematiServiceResponse(string request)
+    private async Task<SematiServiceResult> GetSematiServiceResponse(string request)
     {
         var result = new SematiServiceResult();
 
         try
         {
             var content = new StringContent(request, Encoding.UTF8, "application/json");
-            var httpResponse = _httpClient.PostAsync(_sematiUrl, content).GetAwaiter().GetResult();
-            result.Response = httpResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var httpResponse = await _httpClient.PostAsync(_sematiUrl, content);
+            result.Response = await httpResponse.Content.ReadAsStringAsync();
 
             if (!string.IsNullOrWhiteSpace(result.Response))
             {
@@ -131,7 +130,7 @@ public class TerminationProcess
         return result;
     }
 
-    private void AddToSematiServiceLog(string requestText, BaseResponse? objResponse, string operation, string requestType, string apiCallResponse)
+    private async Task AddToSematiServiceLog(string requestText, BaseResponse? objResponse, string operation, string requestType, string apiCallResponse)
     {
         try
         {
@@ -148,7 +147,7 @@ public class TerminationProcess
                 DealerCode = "System",
                 Channel = "TerminationTool"
             });
-            _dbContext.SaveChanges();
+            await _dbContext.SaveChangesAsync();
         }
         catch (Exception ex)
         {
