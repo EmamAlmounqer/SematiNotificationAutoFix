@@ -123,6 +123,36 @@ public class TerminationProcess
         }
     }
 
+    public async Task TerminateAndSave(string msisdn, string personId, int actionId)
+    {
+        _logger.LogInformation("Terminating number {MSISDN} for action {ActionId} (PersonId={PersonId})", msisdn, actionId, personId);
+
+        var terminateNumber = new SematiTerminateNumber
+        {
+            MSISDN = msisdn,
+            IDNumber = personId,
+            IDTypeID = GetIdTypeByPersonId(personId),
+            SematiCode = -2,
+            NationalityID = 113,
+            SubscriptionType = "V"
+        };
+
+        await TerminateNumber(terminateNumber);
+        await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id}", msisdn, terminateNumber.ID);
+    }
+
+    public static byte GetIdTypeByPersonId(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return 3;
+        var a = s[0];
+        if (a == '1') return 1;
+        if (a == '2') return 2;
+        return 3;
+    }
+
     private SematiRequest GetSematiRequest(SematiTerminateNumber number)
     {
         int reqType = number.ProcessId == (int)SematiProcess.Termination ? (int)RequestType.TerminateActivation : (int)RequestType.CancelSIM;

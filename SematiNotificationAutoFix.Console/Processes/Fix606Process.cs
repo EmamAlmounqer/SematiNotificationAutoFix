@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Models;
@@ -31,67 +31,39 @@ public class Fix606Process
 
         _logger.LogInformation("Processing action {ActionId}", sematiNotificationActionId);
 
-        var sematiNotificationAction = await _dbContext.SematiNotificationActions.FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
-        if (sematiNotificationAction?.SematiUpdateTcn is null)
+        var action = await _dbContext.SematiNotificationActions.FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
+        if (action?.SematiUpdateTcn is null)
         {
             _logger.LogWarning("Action {ActionId} not found or has no TCN — skipping", sematiNotificationActionId);
             return;
         }
 
-        var personId = sematiNotificationAction.SematiNotification.IdNumber;
+        var personId = action.SematiNotification.IdNumber;
         if (personId is null)
         {
             _logger.LogWarning("No PersonId found for action {ActionId} — skipping", sematiNotificationActionId);
             return;
         }
-        
-        using var ____ = LogContext.PushProperty("PersonId", personId);
 
-        var sematiServiceCallLogs = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == sematiNotificationAction.SematiUpdateTcn);
-        if (sematiServiceCallLogs is null || sematiServiceCallLogs.Code != 606)
+        using var ___ = LogContext.PushProperty("PersonId", personId);
+
+        var callLog = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == action.SematiUpdateTcn);
+        if (callLog is null || callLog.Code != 606)
         {
-            _logger.LogWarning("No 606 service call log found for action {ActionId} (TCN={Tcn}) — skipping", sematiNotificationActionId, sematiNotificationAction.SematiUpdateTcn);
+            _logger.LogWarning("No 606 service call log found for action {ActionId} (TCN={Tcn}) — skipping", sematiNotificationActionId, action.SematiUpdateTcn);
             return;
         }
 
-        var pendingNumbers = JsonSerializer.Deserialize<SematiServiceResponse>(sematiServiceCallLogs.ResponseText)?.PendingNumbers;
-
+        var pendingNumbers = JsonSerializer.Deserialize<SematiServiceResponse>(callLog.ResponseText)?.PendingNumbers;
         if (pendingNumbers is null)
         {
-            _logger.LogWarning("Could not deserialize pending numbers or person ID for action {ActionId} — skipping", sematiNotificationActionId);
+            _logger.LogWarning("Could not deserialize pending numbers for action {ActionId} — skipping", sematiNotificationActionId);
             return;
         }
 
         _logger.LogInformation("Found {Count} pending numbers for action {ActionId}: {@Numbers}", pendingNumbers.Count, sematiNotificationActionId, pendingNumbers);
 
         foreach (var number in pendingNumbers)
-        {
-            _logger.LogInformation("Terminating number {MSISDN} for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);
-
-            var terminateNumber = new SematiTerminateNumber
-            {
-                MSISDN = number,
-                IDNumber = personId,
-                IDTypeID = GetIdTypeID(personId),
-                SematiCode = -2,
-                NationalityID = 113,
-                SubscriptionType = "V"
-            };
-
-            await _terminationProcess.TerminateNumber(terminateNumber);
-            await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
-            await _dbContext.SaveChangesAsync();
-
-            _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id}", number, terminateNumber.ID);
-        }
-    }
-
-    private byte GetIdTypeID(string s)
-    {
-        if (string.IsNullOrEmpty(s)) return 3;
-        var a = s[0];
-        if (a == '1') return 1;
-        if (a == '2') return 2;
-        return 3;
+            await _terminationProcess.TerminateAndSave(number, personId, sematiNotificationActionId);
     }
 }

@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.DAL.Data;
-using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
 
 namespace SematiNotificationAutoFix.Console.Processes;
@@ -56,31 +55,6 @@ public class MissingSematiTermination
             return;
         }
 
-        _logger.LogInformation("Terminating number {MSISDN} for action {ActionId} (PersonId={PersonId})", sematiNotificationAction.MSISDN, sematiNotificationActionId, personId);
-
-        var terminateNumber = new SematiTerminateNumber
-        {
-            MSISDN = sematiNotificationAction.MSISDN,
-            IDNumber = personId,
-            IDTypeID = GetIdTypeID(personId),
-            SematiCode = -2,
-            NationalityID = 113,
-            SubscriptionType = "V"
-        };
-
-        await _terminationProcess.TerminateNumber(terminateNumber);
-        await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
-        await _dbContext.SaveChangesAsync();
-
-        _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id}", sematiNotificationAction.MSISDN, terminateNumber.ID);
-    }
-
-    private byte GetIdTypeID(string s)
-    {
-        if (string.IsNullOrEmpty(s)) return 3;
-        var a = s[0];
-        if (a == '1') return 1;
-        if (a == '2') return 2;
-        return 3;
+        await _terminationProcess.TerminateAndSave(sematiNotificationAction.MSISDN, personId, sematiNotificationActionId);
     }
 }
