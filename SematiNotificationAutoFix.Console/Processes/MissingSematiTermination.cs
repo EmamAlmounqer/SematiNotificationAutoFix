@@ -28,9 +28,9 @@ public class MissingSematiTermination
         var action = await _dbContext.SematiNotificationActions.AsNoTracking().Include(x => x.SematiNotification)
                                                                .AsNoTracking()
                                                                .FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
-        if (action?.SematiUpdateTcn is null)
+        if (action is null)
         {
-            _logger.LogWarning("Action {ActionId} not found or has no TCN — skipping", sematiNotificationActionId);
+            _logger.LogWarning("Action {ActionId} not found — skipping", sematiNotificationActionId);
             return;
         }
 

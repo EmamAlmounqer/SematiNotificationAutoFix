@@ -52,7 +52,11 @@ public class Fix606Process
         using var ___ = LogContext.PushProperty("PersonId", personId);
 
         var callLog = await _dbContext.SematiServiceCallLogs.AsNoTracking()
-                                                            .Where(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == action.SematiUpdateTcn && x.Operation == "UpdateSematiNotification" && x.RequestText.Contains(action.SematiNotification.IdNumber) && x.Code == 606)
+                                                            .Where(x => x.Id > _sematiServiceCallLogCutOffId
+                                                                        && x.TCN == action.SematiUpdateTcn
+                                                                        && x.Operation == "UpdateSematiNotification"
+                                                                        && x.RequestText.Contains(action.SematiNotification.IdNumber)
+                                                                        && x.Code == 606)
                                                             .OrderByDescending(x => x.Id)
                                                             .FirstOrDefaultAsync();
                                                             
