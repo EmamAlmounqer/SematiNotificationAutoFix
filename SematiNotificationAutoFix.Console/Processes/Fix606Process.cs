@@ -1,11 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SematiNotificationAutoFix.Console.Models;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace SematiNotificationAutoFix.Console.Processes;
 
@@ -44,6 +44,7 @@ public class Fix606Process
             _logger.LogWarning("No PersonId found for action {ActionId} — skipping", sematiNotificationActionId);
             return;
         }
+        
         using var ____ = LogContext.PushProperty("PersonId", personId);
 
         var sematiServiceCallLogs = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == sematiNotificationAction.SematiUpdateTcn);
@@ -61,7 +62,7 @@ public class Fix606Process
             return;
         }
 
-        _logger.LogInformation("Found {Count} pending numbers for action {ActionId}", pendingNumbers.Count, sematiNotificationActionId);
+        _logger.LogInformation("Found {Count} pending numbers for action {ActionId}: {@Numbers}", pendingNumbers.Count, sematiNotificationActionId, pendingNumbers);
 
         foreach (var number in pendingNumbers)
         {
@@ -93,44 +94,4 @@ public class Fix606Process
         if (a == '2') return 2;
         return 3;
     }
-}
-
-
-public class SematiServiceResponse
-{
-    [JsonPropertyName("tcn")]
-    public string Tcn { get; set; } = default!;
-
-    [JsonPropertyName("code")]
-    public int Code { get; set; }
-
-    [JsonPropertyName("message")]
-    public string Message { get; set; } = default!;
-
-    [JsonPropertyName("pendingNumbers")]
-    public List<string> PendingNumbers { get; set; } = new();
-}
-
-public class SematiServiceRequest
-{
-    [JsonPropertyName("apiKey")]
-    public string ApiKey { get; set; } = default!;
-
-    [JsonPropertyName("operatorTCN")]
-    public string OperatorTcn { get; set; } = default!;
-
-    [JsonPropertyName("personId")]
-    public string PersonId { get; set; } = default!;
-
-    [JsonPropertyName("notificationCode")]
-    public int NotificationCode { get; set; }
-
-    [JsonPropertyName("status")]
-    public int Status { get; set; }
-
-    [JsonPropertyName("tccTCN")]
-    public string TccTcn { get; set; } = default!;
-
-    [JsonPropertyName("update_status")]
-    public int UpdateStatus { get; set; }
 }

@@ -41,8 +41,7 @@ public class MissingSematiTermination
             return;
         }
 
-        using var ___ = LogContext.PushProperty("UpdateTcn", sematiNotificationAction.SematiUpdateTcn);
-        using var ____ = LogContext.PushProperty("PersonId", personId);
+        using var ___ = LogContext.PushProperty("PersonId", personId);
 
         var sematiCallReports = await _dbContext.SematiCallReports.Where(x => x.msisdn == sematiNotificationAction.MSISDN && x.code == "600" && x.personId == personId).OrderByDescending(x => x.TimeStamp).FirstOrDefaultAsync();
         if (sematiCallReports is null)
