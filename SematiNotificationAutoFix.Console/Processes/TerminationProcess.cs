@@ -47,21 +47,21 @@ public class TerminationProcess
 
             var formattedRequest = JsonSerializer.Serialize(activationRequest, _jsonOptions);
 
-            _logger.LogInformation("Calling Semati for number {ID} (MSISDN={MSISDN}, RequestType={RequestType})", number.ID, number.MSISDN, activationRequest?.RequestType);
+            _logger.LogInformation("Calling Semati (MSISDN={MSISDN}, PersonId={PersonId}, RequestType={RequestType})", number.MSISDN, number.IDNumber, activationRequest?.RequestType);
 
             var result = await GetSematiServiceResponse(formattedRequest);
             number.SematiCode = result.ResponseCode;
             number.ExecutionTime = DateTime.Now;
             number.TCN = result.ObjResponse?.Tcn;
 
-            _logger.LogInformation("Semati response for number {ID}: code={Code}, TCN={TCN}", number.ID, result.ResponseCode, number.TCN);
+            _logger.LogInformation("Semati response: code={Code}, TCN={TCN}", result.ResponseCode, number.TCN);
 
             string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
             await AddToSematiServiceLog(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process number {ID} (MSISDN={MSISDN})", number.ID, number.MSISDN);
+            _logger.LogError(ex, "Failed to process number (MSISDN={MSISDN}, PersonId={PersonId})", number.MSISDN, number.IDNumber);
             number.SematiCode = null;
             number.ExecutionTime = null;
         }

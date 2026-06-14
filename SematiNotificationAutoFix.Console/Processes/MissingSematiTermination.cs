@@ -44,7 +44,9 @@ public class MissingSematiTermination
         using var ___ = LogContext.PushProperty("PersonId", personId);
 
         var sematiCallReports = await _dbContext.SematiCallReports.AsNoTracking()
-                                                                  .Where(x => x.msisdn == action.MSISDN && x.code == "600" && x.personId == personId)
+                                                                  .Where(x => x.msisdn == action.MSISDN
+                                                                              && x.code == "600"
+                                                                              && x.personId == personId)
                                                                   .OrderByDescending(x => x.TimeStamp)
                                                                   .FirstOrDefaultAsync();
                                                                   
