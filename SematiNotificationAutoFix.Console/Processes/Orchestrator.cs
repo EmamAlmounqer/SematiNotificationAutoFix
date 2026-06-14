@@ -38,16 +38,16 @@ public class Orchestrator
         }
 
         var outcome = await _sqlAgentJobRunner.RunJobAndWaitAsync(
-           "ExtractSematiCallReport",
-           timeout: TimeSpan.FromMinutes(20),
-           pollInterval: TimeSpan.FromSeconds(20));
+          "ExtractSematiCallReport",
+          timeout: TimeSpan.FromMinutes(20),
+          pollInterval: TimeSpan.FromSeconds(20));
 
         _logger.LogInformation("SQL agent job outcome: {Outcome}", outcome);
 
         try
         {
             var resubmissionIds = ReadIds("Data/Resubmission.txt");
-            var actionIdsNeedResubmission = resubmissionIds.Union(fix606Ids).Union(missingSematiIds).ToList();
+            var actionIdsNeedResubmission = resubmissionIds.ToList();
             await _resubmissionProcess.ResubmitAsync(actionIdsNeedResubmission);
         }
         catch (Exception ex) { _logger.LogError(ex, "Unhandled exception during resubmission"); }

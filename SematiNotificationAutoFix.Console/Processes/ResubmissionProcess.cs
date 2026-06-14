@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.DAL.Data;
+using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
 
 namespace SematiNotificationAutoFix.Console.Processes;
@@ -22,17 +23,18 @@ public class ResubmissionProcess
 
         _logger.LogInformation("Resubmitting {Count} actions: {@Ids}", actionIds.Count, actionIds);
 
-        await UpdateActionsAsync(actionIds);
+        var updatedIds = await UpdateActionsAsync(actionIds);
 
         var delayTimeInSecond = 20;
         _logger.LogInformation("Waiting {DelayTime} seconds before checking results", delayTimeInSecond);
         await Task.Delay(TimeSpan.FromSeconds(delayTimeInSecond));
 
-        await UpdateNotificationStatusAsync(actionIds);
+        await UpdateNotificationStatusAsync(updatedIds);
     }
 
-    private async Task UpdateActionsAsync(List<int> ids)
+    private async Task<List<int>> UpdateActionsAsync(List<int> ids)
     {
+        List<int> updatedIds = [];
         var now = DateTime.Now;
         var actions = await _dbContext.SematiNotificationActions
             .Where(x => ids.Contains(x.Id))
@@ -42,6 +44,12 @@ public class ResubmissionProcess
         {
             using var __ = LogContext.PushProperty("ActionId", action.Id);
 
+            if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
+            {
+                _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", action.Id, action.SematiUpdateCode);
+                continue;
+            }
+
             action.Status = 2;
             action.RetriesCount = null;
 
@@ -49,9 +57,11 @@ public class ResubmissionProcess
                 action.ExpectedActionDate = now;
 
             _logger.LogInformation("Resubmitting action {ActionId} (Status=2, RetriesCount=null, ExpectedActionDate={ExpectedActionDate})", action.Id, action.ExpectedActionDate);
+            updatedIds.Add(action.Id);
         }
 
         await _dbContext.SaveChangesAsync();
+        return updatedIds;
     }
 
     private async Task UpdateNotificationStatusAsync(List<int> ids)

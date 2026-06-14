@@ -34,6 +34,12 @@ public class MissingSematiTermination
             return;
         }
 
+        if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
+        {
+            _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", sematiNotificationActionId, action.SematiUpdateCode);
+            return;
+        }
+
         var personId = action.SematiNotification.IdNumber;
         if (personId is null)
         {
@@ -43,22 +49,22 @@ public class MissingSematiTermination
 
         using var ___ = LogContext.PushProperty("PersonId", personId);
 
-        var sematiCallReports = await _dbContext.SematiCallReports.AsNoTracking()
+        var callReports = await _dbContext.SematiCallReports.AsNoTracking()
                                                                   .Where(x => x.msisdn == action.MSISDN
                                                                               && x.code == "600"
                                                                               && x.personId == personId)
                                                                   .OrderByDescending(x => x.TimeStamp)
                                                                   .FirstOrDefaultAsync();
                                                                   
-        if (sematiCallReports is null)
+        if (callReports is null)
         {
             _logger.LogWarning("No code-600 SematiCallReport found for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId}) — skipping", sematiNotificationActionId, action.MSISDN, personId);
             return;
         }
 
-        if (sematiCallReports.requestType != 1)
+        if (callReports.requestType != 1)
         {
-            _logger.LogWarning("request type in SematiCallLogID (id={id}) is not type 1 it is type {requestType}", sematiCallReports.SematiCallLogID, sematiCallReports.requestType);
+            _logger.LogWarning("request type in SematiCallLogID (id={id}) is not type 1 it is type {requestType}", callReports.SematiCallLogID, callReports.requestType);
             return;
         }
 
