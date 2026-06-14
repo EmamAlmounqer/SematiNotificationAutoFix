@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.DAL.Data;
 using Serilog.Context;
@@ -12,7 +11,7 @@ public class MissingSematiTermination
     private readonly ILogger<MissingSematiTermination> _logger;
     private readonly TerminationProcess _terminationProcess;
 
-    public MissingSematiTermination(IConfiguration configuration, ActivationDbContext dbContext, ILogger<MissingSematiTermination> logger, TerminationProcess terminationProcess)
+    public MissingSematiTermination(ActivationDbContext dbContext, ILogger<MissingSematiTermination> logger, TerminationProcess terminationProcess)
     {
         _dbContext = dbContext;
         _logger = logger;
@@ -26,14 +25,16 @@ public class MissingSematiTermination
 
         _logger.LogInformation("Processing action {ActionId}", sematiNotificationActionId);
 
-        var sematiNotificationAction = await _dbContext.SematiNotificationActions.FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
-        if (sematiNotificationAction?.SematiUpdateTcn is null)
+        var action = await _dbContext.SematiNotificationActions.AsNoTracking().Include(x => x.SematiNotification)
+                                                               .AsNoTracking()
+                                                               .FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
+        if (action?.SematiUpdateTcn is null)
         {
             _logger.LogWarning("Action {ActionId} not found or has no TCN — skipping", sematiNotificationActionId);
             return;
         }
 
-        var personId = sematiNotificationAction.SematiNotification.IdNumber;
+        var personId = action.SematiNotification.IdNumber;
         if (personId is null)
         {
             _logger.LogWarning("No PersonId found for action {ActionId} — skipping", sematiNotificationActionId);
@@ -42,10 +43,14 @@ public class MissingSematiTermination
 
         using var ___ = LogContext.PushProperty("PersonId", personId);
 
-        var sematiCallReports = await _dbContext.SematiCallReports.Where(x => x.msisdn == sematiNotificationAction.MSISDN && x.code == "600" && x.personId == personId).OrderByDescending(x => x.TimeStamp).FirstOrDefaultAsync();
+        var sematiCallReports = await _dbContext.SematiCallReports.AsNoTracking()
+                                                                  .Where(x => x.msisdn == action.MSISDN && x.code == "600" && x.personId == personId)
+                                                                  .OrderByDescending(x => x.TimeStamp)
+                                                                  .FirstOrDefaultAsync();
+                                                                  
         if (sematiCallReports is null)
         {
-            _logger.LogWarning("No code-600 SematiCallReport found for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId}) — skipping", sematiNotificationActionId, sematiNotificationAction.MSISDN, personId);
+            _logger.LogWarning("No code-600 SematiCallReport found for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId}) — skipping", sematiNotificationActionId, action.MSISDN, personId);
             return;
         }
 
@@ -55,6 +60,6 @@ public class MissingSematiTermination
             return;
         }
 
-        await _terminationProcess.TerminateAndSave(sematiNotificationAction.MSISDN, personId, sematiNotificationActionId);
+        await _terminationProcess.TerminateAndSave(action.MSISDN, personId, sematiNotificationActionId);
     }
 }

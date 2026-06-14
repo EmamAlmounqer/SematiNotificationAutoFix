@@ -31,7 +31,11 @@ public class Fix606Process
 
         _logger.LogInformation("Processing action {ActionId}", sematiNotificationActionId);
 
-        var action = await _dbContext.SematiNotificationActions.FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
+        var action = await _dbContext.SematiNotificationActions.AsNoTracking()
+                                                               .Include(x => x.SematiNotification)
+                                                               .AsNoTracking()
+                                                               .FirstOrDefaultAsync(x => x.Id == sematiNotificationActionId);
+                                                               
         if (action?.SematiUpdateTcn is null)
         {
             _logger.LogWarning("Action {ActionId} not found or has no TCN — skipping", sematiNotificationActionId);
@@ -47,7 +51,11 @@ public class Fix606Process
 
         using var ___ = LogContext.PushProperty("PersonId", personId);
 
-        var callLog = await _dbContext.SematiServiceCallLogs.FirstOrDefaultAsync(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == action.SematiUpdateTcn);
+        var callLog = await _dbContext.SematiServiceCallLogs.AsNoTracking()
+                                                            .Where(x => x.Id > _sematiServiceCallLogCutOffId && x.TCN == action.SematiUpdateTcn && x.Operation == "UpdateSematiNotification" && x.RequestText.Contains(action.SematiNotification.IdNumber) && x.Code == 606)
+                                                            .OrderByDescending(x => x.Id)
+                                                            .FirstOrDefaultAsync();
+                                                            
         if (callLog is null || callLog.Code != 606)
         {
             _logger.LogWarning("No 606 service call log found for action {ActionId} (TCN={Tcn}) — skipping", sematiNotificationActionId, action.SematiUpdateTcn);
