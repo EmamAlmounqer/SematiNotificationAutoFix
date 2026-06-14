@@ -38,9 +38,9 @@ public class Orchestrator
         }
 
         var outcome = await _sqlAgentJobRunner.RunJobAndWaitAsync(
-            "ExtractSematiCallReport",
-            timeout: TimeSpan.FromMinutes(20),
-            pollInterval: TimeSpan.FromSeconds(20));
+           "ExtractSematiCallReport",
+           timeout: TimeSpan.FromMinutes(20),
+           pollInterval: TimeSpan.FromSeconds(20));
 
         _logger.LogInformation("SQL agent job outcome: {Outcome}", outcome);
 
