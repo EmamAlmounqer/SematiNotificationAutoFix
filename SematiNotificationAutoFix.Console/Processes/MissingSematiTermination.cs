@@ -10,10 +10,10 @@ namespace SematiNotificationAutoFix.Console.Processes;
 public class MissingSematiTermination
 {
     private readonly ActivationDbContext _dbContext;
-    private readonly ILogger<Fix606Process> _logger;
+    private readonly ILogger<MissingSematiTermination> _logger;
     private readonly TerminationProcess _terminationProcess;
 
-    public MissingSematiTermination(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess)
+    public MissingSematiTermination(IConfiguration configuration, ActivationDbContext dbContext, ILogger<MissingSematiTermination> logger, TerminationProcess terminationProcess)
     {
         _dbContext = dbContext;
         _logger = logger;
@@ -37,7 +37,7 @@ public class MissingSematiTermination
         var personId = sematiNotificationAction.SematiNotification.IdNumber;
         if (personId is null)
         {
-            _logger.LogWarning("Could not Find PeronsId For Action {SematiNotificationActionId}", sematiNotificationActionId);
+            _logger.LogWarning("No PersonId found for action {ActionId} — skipping", sematiNotificationActionId);
             return;
         }
 
@@ -45,9 +45,9 @@ public class MissingSematiTermination
         using var ____ = LogContext.PushProperty("PersonId", personId);
 
         var sematiCallReports = await _dbContext.SematiCallReports.Where(x => x.msisdn == sematiNotificationAction.MSISDN && x.code == "600" && x.personId == personId).OrderByDescending(x => x.TimeStamp).FirstOrDefaultAsync();
-        if (sematiCallReports is null || sematiCallReports.code != "600")
+        if (sematiCallReports is null)
         {
-            _logger.LogWarning("No 600 sematiCallReports found for action {ActionId} (TCN={Tcn}) — skipping", sematiNotificationActionId, sematiNotificationAction.SematiUpdateTcn);
+            _logger.LogWarning("No code-600 SematiCallReport found for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId}) — skipping", sematiNotificationActionId, sematiNotificationAction.MSISDN, personId);
             return;
         }
 
@@ -57,7 +57,7 @@ public class MissingSematiTermination
             return;
         }
 
-        _logger.LogInformation("Start SematiTerminateNumber {MSISDN} terminate numbers for action {ActionId} (PersonId={PersonId})", sematiNotificationAction.MSISDN, sematiNotificationActionId, personId);
+        _logger.LogInformation("Terminating number {MSISDN} for action {ActionId} (PersonId={PersonId})", sematiNotificationAction.MSISDN, sematiNotificationActionId, personId);
 
         var terminateNumber = new SematiTerminateNumber
         {
@@ -73,7 +73,7 @@ public class MissingSematiTermination
         await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("End SematiTerminateNumber {MSISDN} with SematiTerminateNumberId {id}", sematiNotificationAction.MSISDN, terminateNumber);
+        _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id}", sematiNotificationAction.MSISDN, terminateNumber.ID);
     }
 
     private byte GetIdTypeID(string s)

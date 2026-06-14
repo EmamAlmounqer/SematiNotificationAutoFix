@@ -41,7 +41,7 @@ public class Fix606Process
         var personId = sematiNotificationAction.SematiNotification.IdNumber;
         if (personId is null)
         {
-            _logger.LogWarning("Could not Find PeronsId For Action {SematiNotificationActionId}", sematiNotificationActionId);
+            _logger.LogWarning("No PersonId found for action {ActionId} — skipping", sematiNotificationActionId);
             return;
         }
         using var ____ = LogContext.PushProperty("PersonId", personId);
@@ -61,11 +61,11 @@ public class Fix606Process
             return;
         }
 
-        _logger.LogInformation("Get PendingNumbers {PendingNumbers}", pendingNumbers);
+        _logger.LogInformation("Found {Count} pending numbers for action {ActionId}", pendingNumbers.Count, sematiNotificationActionId);
 
         foreach (var number in pendingNumbers)
         {
-            _logger.LogInformation("Start SematiTerminateNumber {MSISDN} terminate numbers for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);
+            _logger.LogInformation("Terminating number {MSISDN} for action {ActionId} (PersonId={PersonId})", number, sematiNotificationActionId, personId);
 
             var terminateNumber = new SematiTerminateNumber
             {
@@ -81,7 +81,7 @@ public class Fix606Process
             await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogInformation("End SematiTerminateNumber {MSISDN} with SematiTerminateNumberId {id}", number, terminateNumber);
+            _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id}", number, terminateNumber.ID);
         }
     }
 
