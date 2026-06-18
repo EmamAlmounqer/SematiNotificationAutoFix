@@ -4,4 +4,5 @@
   </Folder>
   <Project Path="SematiNotificationAutoFix.Console/SematiNotificationAutoFix.Console.csproj" />
   <Project Path="SematiNotificationAutoFix.DAL/SematiNotificationAutoFix.DAL.csproj" />
+  <Project Path="SematiNotificationAutoFix.Integration/SematiNotificationAutoFix.Integration.csproj" />
 </Solution>
