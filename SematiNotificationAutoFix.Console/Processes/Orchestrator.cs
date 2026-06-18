@@ -8,12 +8,14 @@ public class Orchestrator
 {
     private readonly Fix606Process _fix606Process;
     private readonly MissingSematiTermination _missingSematiTermination;
+    private readonly FixNoActivationActionProcess _fixNoActivationActionProcess;
     private readonly ResubmissionProcess _resubmissionProcess;
     private readonly SqlAgentJobRunner _sqlAgentJobRunner;
     private readonly ILogger<Orchestrator> _logger;
     private readonly string _fix606IdsFilePath = "Data/Fix606.txt";
     private readonly string _missingSematiIdsFilePath = "Data/MissingSematiTermination.txt";
     private readonly string _resubmissionIdsFilePath = "Data/Resubmission.txt";
+    private readonly string _fixNoActivationActionIdsFilePath = "Data/FixNoActivationAction.txt";
     private readonly bool _resubmitSucessededProcess;
     private readonly bool _runExtractSematiCallReportJob;
 
@@ -21,6 +23,7 @@ public class Orchestrator
                         MissingSematiTermination missingSematiTermination,
                         ResubmissionProcess resubmissionProcess,
                         SqlAgentJobRunner sqlAgentJobRunner,
+                        FixNoActivationActionProcess fixNoActivationActionProcess,
                         ILogger<Orchestrator> logger,
                         IConfiguration configuration)
     {
@@ -28,6 +31,7 @@ public class Orchestrator
         _missingSematiTermination = missingSematiTermination;
         _resubmissionProcess = resubmissionProcess;
         _sqlAgentJobRunner = sqlAgentJobRunner;
+        _fixNoActivationActionProcess = fixNoActivationActionProcess;
         _logger = logger;
         _resubmitSucessededProcess = configuration.GetValue("ProcessOptions:ResubmitSucceededProcess", false);
         _runExtractSematiCallReportJob = configuration.GetValue("ProcessOptions:RunExtractSematiCallReportJob", true);
@@ -40,6 +44,9 @@ public class Orchestrator
 
         var missingSematiIds = ReadIds(_missingSematiIdsFilePath);
         var sucessededMissingSematiIds = await _missingSematiTermination.ProcessAsync(missingSematiIds);
+
+        var fixNoActivationActionIds = ReadIds(_fixNoActivationActionIdsFilePath);
+        await _fixNoActivationActionProcess.ProcessAsync(fixNoActivationActionIds);
 
         var needToExtractSematiCallReport = sucessededFix606Ids.Count != 0 || sucessededMissingSematiIds.Count != 0;
         if (_runExtractSematiCallReportJob && needToExtractSematiCallReport)

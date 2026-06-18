@@ -23,6 +23,7 @@ builder.Services.AddScoped<TerminationProcess>();
 builder.Services.AddScoped<Fix606Process>();
 builder.Services.AddScoped<MissingSematiTermination>();
 builder.Services.AddScoped<ResubmissionProcess>();
+builder.Services.AddScoped<FixNoActivationActionProcess>();
 builder.Services.AddScoped<Orchestrator>();
 
 using var host = builder.Build();
