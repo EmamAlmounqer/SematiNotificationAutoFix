@@ -76,9 +76,7 @@ ORDER BY ja.run_requested_date DESC;";
 
             if (isRunning) continue;
 
-            _looger.LogInformation("job {jobName} ended, runStatus {runStatus}", jobName, runStatus);
-            // stopped — interpret outcome
-            return runStatus switch
+            var outcome = runStatus switch
             {
                 1 => JobOutcome.Succeeded,
                 0 => JobOutcome.Failed,
@@ -86,6 +84,10 @@ ORDER BY ja.run_requested_date DESC;";
                 2 => JobOutcome.Retry,
                 _ => JobOutcome.Unknown
             };
+
+            _looger.LogInformation("job {jobName} ended, outcome: {outcome}", jobName, outcome);
+
+            return outcome;
         }
 
     }

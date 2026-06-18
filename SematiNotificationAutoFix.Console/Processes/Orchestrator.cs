@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Utils;
 
@@ -10,44 +11,56 @@ public class Orchestrator
     private readonly ResubmissionProcess _resubmissionProcess;
     private readonly SqlAgentJobRunner _sqlAgentJobRunner;
     private readonly ILogger<Orchestrator> _logger;
+    private readonly string _fix606IdsFilePath = "Data/Fix606.txt";
+    private readonly string _missingSematiIdsFilePath = "Data/MissingSematiTermination.txt";
+    private readonly string _resubmissionIdsFilePath = "Data/Resubmission.txt";
+    private readonly bool _resubmitSucessededProcess;
+    private readonly bool _runExtractSematiCallReportJob;
 
-    public Orchestrator(Fix606Process fix606Process, MissingSematiTermination missingSematiTermination, ResubmissionProcess resubmissionProcess, SqlAgentJobRunner sqlAgentJobRunner, ILogger<Orchestrator> logger)
+    public Orchestrator(Fix606Process fix606Process,
+                        MissingSematiTermination missingSematiTermination,
+                        ResubmissionProcess resubmissionProcess,
+                        SqlAgentJobRunner sqlAgentJobRunner,
+                        ILogger<Orchestrator> logger,
+                        IConfiguration configuration)
     {
         _fix606Process = fix606Process;
         _missingSematiTermination = missingSematiTermination;
         _resubmissionProcess = resubmissionProcess;
         _sqlAgentJobRunner = sqlAgentJobRunner;
         _logger = logger;
+        _resubmitSucessededProcess = configuration.GetValue("ProcessOptions:ResubmitSucceededProcess", false);
+        _runExtractSematiCallReportJob = configuration.GetValue("ProcessOptions:RunExtractSematiCallReportJob", true);
     }
 
     public async Task RunAsync()
     {
-        var fix606Ids = ReadIds("Data/Fix606.txt");
+        var fix606Ids = ReadIds(_fix606IdsFilePath);
+        var sucessededFix606Ids = await _fix606Process.ProcessAsync(fix606Ids);
 
-        foreach (var id in fix606Ids)
+        var missingSematiIds = ReadIds(_missingSematiIdsFilePath);
+        var sucessededMissingSematiIds = await _missingSematiTermination.ProcessAsync(missingSematiIds);
+
+        var needToExtractSematiCallReport = sucessededFix606Ids.Count != 0 || sucessededMissingSematiIds.Count != 0;
+        if (_runExtractSematiCallReportJob && needToExtractSematiCallReport)
         {
-            try { await _fix606Process.Process(id); }
-            catch (Exception ex) { _logger.LogError(ex, "Unhandled exception processing action {ActionId}", id); }
+            await _sqlAgentJobRunner.RunJobAndWaitAsync(
+              "ExtractSematiCallReport",
+              timeout: TimeSpan.FromMinutes(20),
+              pollInterval: TimeSpan.FromSeconds(20));
         }
-
-        var missingSematiIds = ReadIds("Data/MissingSematiTermination.txt");
-        foreach (var id in missingSematiIds)
-        {
-            try { await _missingSematiTermination.Process(id); }
-            catch (Exception ex) { _logger.LogError(ex, "Unhandled exception processing action {ActionId}", id); }
-        }
-
-        var outcome = await _sqlAgentJobRunner.RunJobAndWaitAsync(
-          "ExtractSematiCallReport",
-          timeout: TimeSpan.FromMinutes(20),
-          pollInterval: TimeSpan.FromSeconds(20));
-
-        _logger.LogInformation("SQL agent job outcome: {Outcome}", outcome);
 
         try
         {
-            var resubmissionIds = ReadIds("Data/Resubmission.txt");
+            var resubmissionIds = ReadIds(_resubmissionIdsFilePath);
             var actionIdsNeedResubmission = resubmissionIds.ToList();
+            if (_resubmitSucessededProcess)
+            {
+                actionIdsNeedResubmission.AddRange(sucessededFix606Ids);
+                actionIdsNeedResubmission.AddRange(sucessededMissingSematiIds);
+                actionIdsNeedResubmission = actionIdsNeedResubmission.Distinct().ToList();
+            }
+
             await _resubmissionProcess.ResubmitAsync(actionIdsNeedResubmission);
         }
         catch (Exception ex) { _logger.LogError(ex, "Unhandled exception during resubmission"); }

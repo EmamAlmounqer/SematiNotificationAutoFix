@@ -17,7 +17,7 @@ public class ResubmissionProcess
         _logger = logger;
     }
 
-    public async Task ResubmitAsync(List<int> actionIds)
+    public async Task<List<int>> ResubmitAsync(List<int> actionIds)
     {
         using var _ = LogContext.PushProperty("ProcessName", "Resubmission");
 
@@ -29,7 +29,8 @@ public class ResubmissionProcess
         _logger.LogInformation("Waiting {DelayTime} seconds before checking results", delayTimeInSecond);
         await Task.Delay(TimeSpan.FromSeconds(delayTimeInSecond));
 
-        await UpdateNotificationStatusAsync(updatedIds);
+        var sucessfulIds = await UpdateNotificationStatusAsync(updatedIds);
+        return sucessfulIds;
     }
 
     private async Task<List<int>> UpdateActionsAsync(List<int> ids)
@@ -64,9 +65,10 @@ public class ResubmissionProcess
         return updatedIds;
     }
 
-    private async Task UpdateNotificationStatusAsync(List<int> ids)
+    private async Task<List<int>> UpdateNotificationStatusAsync(List<int> ids)
     {
         _dbContext.ChangeTracker.Clear();
+        List<int> updatedIds = [];
 
         var actions = await _dbContext.SematiNotificationActions
             .Where(x => ids.Contains(x.Id))
@@ -84,9 +86,11 @@ public class ResubmissionProcess
             }
 
             action.SematiNotification.Status = 3;
+            updatedIds.Add(action.Id);
             _logger.LogInformation("Setting SematiNotification {NotificationId} Status=3 (Action={ActionId}, Code={Code})", action.SematiNotificationId, action.Id, action.SematiUpdateCode);
         }
 
         await _dbContext.SaveChangesAsync();
+        return updatedIds;
     }
 }

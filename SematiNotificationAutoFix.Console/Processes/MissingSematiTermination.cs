@@ -18,7 +18,25 @@ public class MissingSematiTermination
         _terminationProcess = terminationProcess;
     }
 
-    public async Task Process(int sematiNotificationActionId)
+    public async Task<List<int>> ProcessAsync(List<int> actionIds)
+    {
+        var sucessfulIds = new List<int>();
+        foreach (var id in actionIds)
+        {
+            try
+            {
+                if (await ProcessAsync(id)) 
+                    sucessfulIds.Add(id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception processing action {ActionId}", id);
+            }
+        }
+        return sucessfulIds;
+    }
+
+    public async Task<bool> ProcessAsync(int sematiNotificationActionId)
     {
         using var _ = LogContext.PushProperty("ProcessName", "MissingSematiTermination");
         using var __ = LogContext.PushProperty("ActionId", sematiNotificationActionId);
@@ -31,20 +49,20 @@ public class MissingSematiTermination
         if (action is null)
         {
             _logger.LogWarning("Action {ActionId} not found — skipping", sematiNotificationActionId);
-            return;
+            return false;
         }
 
         if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
         {
             _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", sematiNotificationActionId, action.SematiUpdateCode);
-            return;
+            return false;
         }
 
         var personId = action.SematiNotification.IdNumber;
         if (personId is null)
         {
             _logger.LogWarning("No PersonId found for action {ActionId} — skipping", sematiNotificationActionId);
-            return;
+            return false;
         }
 
         using var ___ = LogContext.PushProperty("PersonId", personId);
@@ -59,15 +77,21 @@ public class MissingSematiTermination
         if (callReports is null)
         {
             _logger.LogWarning("No code-600 SematiCallReport found for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId}) — skipping", sematiNotificationActionId, action.MSISDN, personId);
-            return;
+            return false;
         }
 
         if (callReports.requestType != 1)
         {
             _logger.LogWarning("request type in SematiCallLogID (id={id}) is not type 1 it is type {requestType}", callReports.SematiCallLogID, callReports.requestType);
-            return;
+            return false;
         }
 
-        await _terminationProcess.TerminateAndSave(action.MSISDN, personId, sematiNotificationActionId);
+        if (!await _terminationProcess.TerminateAndSaveAsync(action.MSISDN, personId, sematiNotificationActionId))
+        {
+            _logger.LogError("Failed to terminate number for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId})", sematiNotificationActionId, action.MSISDN, personId);
+            return false;
+        }
+
+        return true;
     }
 }
