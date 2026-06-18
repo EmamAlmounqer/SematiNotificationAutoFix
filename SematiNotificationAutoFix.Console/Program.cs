@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using LP.PluginHost.Integration;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,6 +19,7 @@ builder.Services.AddDbContext<ActivationDbContext>(opts =>
         builder.Configuration.GetConnectionString("Default"),
         sqlOpts => sqlOpts.UseCompatibilityLevel(120)));
 
+builder.Services.AddSingleton<NobillClientFactory>();
 builder.Services.AddSingleton<SqlAgentJobRunner>();
 builder.Services.AddScoped<TerminationProcess>();
 builder.Services.AddScoped<Fix606Process>();

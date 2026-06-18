@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SematiNotificationAutoFix.DAL\SematiNotificationAutoFix.DAL.csproj" />
+    <ProjectReference Include="..\SematiNotificationAutoFix.Integration\SematiNotificationAutoFix.Integration.csproj" />
   </ItemGroup>
 
   <ItemGroup>
