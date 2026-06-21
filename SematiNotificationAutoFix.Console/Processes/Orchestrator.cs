@@ -8,22 +8,22 @@ public class Orchestrator
 {
     private readonly Fix606Process _fix606Process;
     private readonly MissingSematiTermination _missingSematiTermination;
-    private readonly FixNoActivationActionProcess _fixNoActivationActionProcess;
+    private readonly FixNoNotificationActionProcess _fixNoNotificationActionProcess;
     private readonly ResubmissionProcess _resubmissionProcess;
     private readonly SqlAgentJobRunner _sqlAgentJobRunner;
     private readonly ILogger<Orchestrator> _logger;
     private readonly string _fix606IdsFilePath = "Data/Fix606.txt";
     private readonly string _missingSematiIdsFilePath = "Data/MissingSematiTermination.txt";
     private readonly string _resubmissionIdsFilePath = "Data/Resubmission.txt";
-    private readonly string _fixNoActivationActionIdsFilePath = "Data/FixNoActivationAction.txt";
-    private readonly bool _resubmitSucessededProcess;
+    private readonly string _fixNoNotificationActionIdsFilePath = "Data/FixNoNotificationAction.txt";
+    private readonly bool _resubmitSucceededProcess;
     private readonly bool _runExtractSematiCallReportJob;
 
     public Orchestrator(Fix606Process fix606Process,
                         MissingSematiTermination missingSematiTermination,
                         ResubmissionProcess resubmissionProcess,
                         SqlAgentJobRunner sqlAgentJobRunner,
-                        FixNoActivationActionProcess fixNoActivationActionProcess,
+                        FixNoNotificationActionProcess fixNoNotificationActionProcess,
                         ILogger<Orchestrator> logger,
                         IConfiguration configuration)
     {
@@ -31,24 +31,24 @@ public class Orchestrator
         _missingSematiTermination = missingSematiTermination;
         _resubmissionProcess = resubmissionProcess;
         _sqlAgentJobRunner = sqlAgentJobRunner;
-        _fixNoActivationActionProcess = fixNoActivationActionProcess;
+        _fixNoNotificationActionProcess = fixNoNotificationActionProcess;
         _logger = logger;
-        _resubmitSucessededProcess = configuration.GetValue("ProcessOptions:ResubmitSucceededProcess", false);
+        _resubmitSucceededProcess = configuration.GetValue("ProcessOptions:ResubmitSucceededProcess", false);
         _runExtractSematiCallReportJob = configuration.GetValue("ProcessOptions:RunExtractSematiCallReportJob", true);
     }
 
     public async Task RunAsync()
     {
-        var fix606Ids = ReadIds(_fix606IdsFilePath);
-        var sucessededFix606Ids = await _fix606Process.ProcessAsync(fix606Ids);
+        var fix606ActionIds = ReadIds(_fix606IdsFilePath);
+        var succeededFix606ActionIds = await _fix606Process.ProcessAsync(fix606ActionIds);
 
-        var missingSematiIds = ReadIds(_missingSematiIdsFilePath);
-        var sucessededMissingSematiIds = await _missingSematiTermination.ProcessAsync(missingSematiIds);
+        var missingSematiActionIds = ReadIds(_missingSematiIdsFilePath);
+        var succeededMissingSematiActionIds = await _missingSematiTermination.ProcessAsync(missingSematiActionIds);
 
-        var fixNoActivationActionIds = ReadIds(_fixNoActivationActionIdsFilePath);
-        var terminatedNoActivationIds = await _fixNoActivationActionProcess.TerminateAsync(fixNoActivationActionIds);
+        var fixNoNotificationActionNotificationIds = ReadIds(_fixNoNotificationActionIdsFilePath);
+        var terminatedNoNotificationActionIds = await _fixNoNotificationActionProcess.TerminateAsync(fixNoNotificationActionNotificationIds);
 
-        var needToExtractSematiCallReport = sucessededFix606Ids.Count != 0 || sucessededMissingSematiIds.Count != 0 || terminatedNoActivationIds.Count != 0;
+        var needToExtractSematiCallReport = succeededFix606ActionIds.Count != 0 || succeededMissingSematiActionIds.Count != 0 || terminatedNoNotificationActionIds.Count != 0;
         if (_runExtractSematiCallReportJob && needToExtractSematiCallReport)
         {
             await _sqlAgentJobRunner.RunJobAndWaitAsync(
@@ -57,15 +57,15 @@ public class Orchestrator
               pollInterval: TimeSpan.FromSeconds(20));
         }
 
-
         try
         {
             var resubmissionIds = ReadIds(_resubmissionIdsFilePath);
             var actionIdsNeedResubmission = resubmissionIds.ToList();
-            if (_resubmitSucessededProcess)
+            if (_resubmitSucceededProcess)
             {
-                actionIdsNeedResubmission.AddRange(sucessededFix606Ids);
-                actionIdsNeedResubmission.AddRange(sucessededMissingSematiIds);
+                actionIdsNeedResubmission.AddRange(succeededFix606ActionIds);
+                actionIdsNeedResubmission.AddRange(succeededMissingSematiActionIds);
+                actionIdsNeedResubmission.AddRange(terminatedNoNotificationActionIds);
                 actionIdsNeedResubmission = actionIdsNeedResubmission.Distinct().ToList();
             }
 
@@ -74,15 +74,6 @@ public class Orchestrator
         catch (Exception ex) 
         { 
             _logger.LogError(ex, "Unhandled exception during resubmission"); 
-        }
-
-        try
-        {
-            await _fixNoActivationActionProcess.SaveActionsAsync(terminatedNoActivationIds);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled exception during resubmission");
         }
 
     }

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SematiNotificationAutoFix.Console.Enums;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
@@ -51,7 +52,7 @@ public class ResubmissionProcess
                 continue;
             }
 
-            action.Status = 2;
+            action.Status = (int)SematiNotificationStatus.Created;
             action.RetriesCount = null;
 
             if (action.ExpectedActionDate > now)
@@ -85,7 +86,7 @@ public class ResubmissionProcess
                 continue;
             }
 
-            action.SematiNotification.Status = 3;
+            action.SematiNotification.Status = (int)SematiNotificationStatus.Completed;
             updatedIds.Add(action.Id);
             _logger.LogInformation("Setting SematiNotification {NotificationId} Status=3 (Action={ActionId}, Code={Code})", action.SematiNotificationId, action.Id, action.SematiUpdateCode);
         }

@@ -8,14 +8,14 @@ using Serilog.Context;
 
 namespace SematiNotificationAutoFix.Console.Processes;
 
-public class FixNoActivationActionProcess
+public class FixNoNotificationActionProcess
 {
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationProcess _terminationProcess;
     private readonly NobillServiceClient _nobill;
 
-    public FixNoActivationActionProcess(ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess, NobillServiceClient nobill)
+    public FixNoNotificationActionProcess(ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess, NobillServiceClient nobill)
     {
         _dbContext = dbContext;
         _logger = logger;
@@ -25,8 +25,8 @@ public class FixNoActivationActionProcess
 
     public async Task<List<int>> TerminateAsync(List<int> sematiNotificationIds)
     {
-        LogContext.PushProperty("ProcessName", "FixNoActivationAction");
-        var terminatedIds = new List<int>();
+        LogContext.PushProperty("ProcessName", "FixNoNotificationAction");
+        var createdActionIds = new List<int>();
 
         var notifications = await _dbContext.SematiNotifications.AsNoTracking()
                                                                 .Where(x => sematiNotificationIds.Contains(x.Id))
@@ -36,8 +36,8 @@ public class FixNoActivationActionProcess
         {
             try
             {
-                if (await TerminateAsync(notification))
-                    terminatedIds.Add(notification.Id);
+                var actionIds = await TerminateAsync(notification);
+                createdActionIds.AddRange(actionIds);
             }
             catch (Exception ex)
             {
@@ -45,139 +45,60 @@ public class FixNoActivationActionProcess
             }
         }
 
-        return terminatedIds;
+        return createdActionIds;
     }
 
-    public async Task SaveActionsAsync(List<int> sematiNotificationIds)
-    {
-        LogContext.PushProperty("ProcessName", "FixNoActivationAction");
-
-        var notifications = await _dbContext.SematiNotifications.AsNoTracking()
-                                                                .Where(x => sematiNotificationIds.Contains(x.Id))
-                                                                .ToListAsync();
-
-        foreach (var notification in notifications)
-        {
-            try
-            {
-                await SaveActionAsync(notification);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unhandled exception saving action for Semati Notification {SematiNotificationId}", notification.Id);
-            }
-        }
-    }
-
-    private async Task<bool> TerminateAsync(SematiNotification notification)
+    private async Task<List<int>> TerminateAsync(SematiNotification notification)
     {
         LogContext.PushProperty("NotificationId", notification.Id);
 
         if (_dbContext.SematiNotificationActions.Any(x => x.SematiNotificationId == notification.Id))
         {
             _logger.LogWarning("Notification {NotificationId} already has an action associated with it.", notification.Id);
-            return false;
+            return [];
         }
 
         var sematiNotificationActionStepId = GetSematiNotificationActionStepIdByCode(notification.NotificationCode);
         if (sematiNotificationActionStepId == -1)
         {
             _logger.LogWarning("No SematiNotificationActionStep mapping found for notification code {NotificationCode} for notification {NotificationId}", notification.NotificationCode, notification.Id);
-            return false;
+            return [];
         }
 
         var personId = notification.IdNumber;
-
         var (msisdns, nobillAccountNumber) = await FetchMsisdnsAndAccountNumber(notification, personId);
 
+        List<SematiNotificationAction> newActions = [];
         foreach (var msisdn in msisdns)
         {
             await _terminationProcess.TerminateAndSaveAsync(msisdn, personId);
 
-            // should be after running the job
             var newAction = new SematiNotificationAction
             {
                 MSISDN = msisdn,
                 ExpectedActionDate = DateTime.Now,
                 CreatedAt = DateTime.Now,
-                Status = 2,
+                Status = (int)SematiNotificationStatus.HasErrors,
                 SematiNotificationId = notification.Id,
                 SematiNotificationActionStepId = sematiNotificationActionStepId,
                 AccountNumber = nobillAccountNumber
             };
 
-            _dbContext.SematiNotificationActions.Add(newAction);
-            _logger.LogInformation("Created new activation action for notification {NotificationId} with MSISDN {MSISDN} and AccountNumber {AccountNumber}", notification.Id, msisdn, nobillAccountNumber);
-
+            newActions.Add(newAction);
         }
 
-        //notification.Status = (int)SematiNotificationStatus.Completed;
+        _dbContext.SematiNotificationActions.AddRange(newActions);
         await _dbContext.SaveChangesAsync();
 
-        return true;
-    }
+        var newActionIds = newActions.Select(a => a.Id).ToList();
+        _logger.LogInformation("Saved {Count} new actions for notification {NotificationId} with AccountNumber {AccountNumber} — IDs: {@Ids}, MSISDNs: {@MSISDNs}",
+            newActions.Count,
+            notification.Id,
+            nobillAccountNumber,
+            newActionIds,
+            newActions.Select(a => a.MSISDN));
 
-    private async Task SaveActionAsync(SematiNotification notification)
-    {
-        LogContext.PushProperty("NotificationId", notification.Id);
-
-        if (_dbContext.SematiNotificationActions.Any(x => x.SematiNotificationId == notification.Id))
-        {
-            _logger.LogWarning("Notification {NotificationId} already has an action associated with it, skipping action creation.", notification.Id);
-            return;
-        }
-
-        var sematiNotificationActionStepId = GetSematiNotificationActionStepIdByCode(notification.NotificationCode);
-        if (sematiNotificationActionStepId == -1)
-        {
-            _logger.LogWarning("No SematiNotificationActionStep mapping found for notification code {NotificationCode} for notification {NotificationId}", notification.NotificationCode, notification.Id);
-            return;
-        }
-
-        var personId = notification.IdNumber;
-        var identityMaster = await _dbContext.IdentityMasters.AsNoTracking().FirstOrDefaultAsync(x => x.BorderNumber == personId)
-                           ?? await _dbContext.IdentityMasters.AsNoTracking().FirstOrDefaultAsync(x => x.IdNumber == personId);
-
-        if (identityMaster is null)
-        {
-            _logger.LogWarning("No IdentityMaster found for notification {NotificationId} with personId {PersonId}", notification.Id, personId);
-            return;
-        }
-
-        var activations = await _dbContext.Activations.AsNoTracking()
-                                                     .Where(x => x.IdentityMasterId == identityMaster.Id)
-                                                     .OrderByDescending(x => x.CreatedOn)
-                                                     .ToListAsync();
-
-        if (activations is null || activations.Count == 0)
-        {
-            _logger.LogWarning("No Activation found for notification {NotificationId} with personId {PersonId} and IdentityMasterId {IdentityMasterId}", notification.Id, personId, identityMaster.Id);
-            return;
-        }
-
-        if (activations.Count > 1)
-        {
-            _logger.LogWarning("Multiple Activations found for notification {NotificationId} with personId {PersonId} and IdentityMasterId {IdentityMasterId}.", notification.Id, personId, identityMaster.Id);
-            return;
-        }
-
-        var activation = activations[0];
-        var newAction = new SematiNotificationAction
-        {
-            MSISDN = activation.MSISDN,
-            ExpectedActionDate = DateTime.Now,
-            CreatedAt = DateTime.Now,
-            Status = 2,
-            SematiNotificationId = notification.Id,
-            SematiNotificationActionStepId = sematiNotificationActionStepId,
-            AccountNumber = activation.NobillAccountNumber
-        };
-
-        _dbContext.SematiNotificationActions.Add(newAction);
-        _logger.LogInformation("Created new activation action for notification {NotificationId} with MSISDN {MSISDN} and AccountNumber {AccountNumber}", notification.Id, activation.MSISDN, activation.NobillAccountNumber);
-
-        //notification.Status = (int)SematiNotificationStatus.Completed;
-        await _dbContext.SaveChangesAsync();
+        return newActionIds;
     }
 
     private int GetSematiNotificationActionStepIdByCode(int code)
@@ -202,7 +123,7 @@ public class FixNoActivationActionProcess
         return !isSaudiNumber;
     }
 
-    private async Task<(List<string> Msisdns, string? nobillAccoundNumber)> FetchMsisdnsAndAccountNumber(SematiNotification notification, string personId)
+    private async Task<(List<string> Msisdns, string? nobillAccountNumber)> FetchMsisdnsAndAccountNumber(SematiNotification notification, string personId)
     {
 
         var identityMaster = await _dbContext.IdentityMasters.AsNoTracking().FirstOrDefaultAsync(x => x.BorderNumber == personId)
@@ -226,8 +147,6 @@ public class FixNoActivationActionProcess
                 var nobillAccountNumber = activations.FirstOrDefault()?.NobillAccountNumber;
                 return (msisdns, nobillAccountNumber);
             }
-
-
         }
         else
         {
