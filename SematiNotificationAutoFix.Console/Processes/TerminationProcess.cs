@@ -40,7 +40,35 @@ public class TerminationProcess
         _employeeId = configuration.GetValue<string>("Semati:EmployeeId")!;
     }
 
-    public async Task<SematiServiceResult> TerminateNumberAsync(SematiTerminateNumber number)
+    public async Task<bool> TerminateAndSaveAsync(string msisdn, string personId)
+    {
+        _logger.LogInformation("Terminating number {MSISDN} (PersonId={PersonId})", msisdn, personId);
+
+        var terminateNumber = new SematiTerminateNumber
+        {
+            MSISDN = msisdn,
+            IDNumber = personId,
+            IDTypeID = GetIdTypeByPersonId(personId),
+            SematiCode = -2,
+            NationalityID = 113,
+            SubscriptionType = "V"
+        };
+
+        var result = await TerminateNumberAsync(terminateNumber);
+        if (!_allowedTerminationCodes.Contains(result.ResponseCode.ToString()))
+        {
+            _logger.LogError("Failed to terminate number {MSISDN} (PersonId={PersonId}): {ErrorMessage}", msisdn, personId, result.ErrorMessage);
+            return false;
+        }
+
+        await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id}", msisdn, terminateNumber.ID);
+        return true;
+    }
+
+    private async Task<SematiServiceResult> TerminateNumberAsync(SematiTerminateNumber number)
     {
         try
         {
@@ -125,34 +153,6 @@ public class TerminationProcess
         {
             _logger.LogError(ex, "Failed to save service call log (Operation={Operation}, TCN={TCN})", operation, objResponse?.Tcn);
         }
-    }
-
-    public async Task<bool> TerminateAndSaveAsync(string msisdn, string personId, int actionId)
-    {
-        _logger.LogInformation("Terminating number {MSISDN} for action {ActionId} (PersonId={PersonId})", msisdn, actionId, personId);
-
-        var terminateNumber = new SematiTerminateNumber
-        {
-            MSISDN = msisdn,
-            IDNumber = personId,
-            IDTypeID = GetIdTypeByPersonId(personId),
-            SematiCode = -2,
-            NationalityID = 113,
-            SubscriptionType = "V"
-        };
-
-        var result = await TerminateNumberAsync(terminateNumber);
-        if (!_allowedTerminationCodes.Contains(result.ResponseCode.ToString()))
-        {
-            _logger.LogError("Failed to terminate number {MSISDN} for action {ActionId} (PersonId={PersonId}): {ErrorMessage}", msisdn, actionId, personId, result.ErrorMessage);
-            return false;
-        }
-
-        await _dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
-        await _dbContext.SaveChangesAsync();
-
-        _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id}", msisdn, terminateNumber.ID);
-        return true;
     }
 
     public static byte GetIdTypeByPersonId(string s)

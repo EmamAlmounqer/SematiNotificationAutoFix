@@ -102,7 +102,7 @@ public class Fix606Process
         var allPendingNumberTerminateSucceeded = true;
         foreach (var number in pendingNumbers)
         {
-            if (!await _terminationProcess.TerminateAndSaveAsync(number, personId, sematiNotificationActionId))
+            if (!await _terminationProcess.TerminateAndSaveAsync(number, personId))
                 allPendingNumberTerminateSucceeded = false;
         }
         return allPendingNumberTerminateSucceeded;

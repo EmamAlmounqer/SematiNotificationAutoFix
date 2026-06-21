@@ -86,7 +86,7 @@ public class MissingSematiTermination
             return false;
         }
 
-        if (!await _terminationProcess.TerminateAndSaveAsync(action.MSISDN, personId, sematiNotificationActionId))
+        if (!await _terminationProcess.TerminateAndSaveAsync(action.MSISDN, personId))
         {
             _logger.LogError("Failed to terminate number for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId})", sematiNotificationActionId, action.MSISDN, personId);
             return false;

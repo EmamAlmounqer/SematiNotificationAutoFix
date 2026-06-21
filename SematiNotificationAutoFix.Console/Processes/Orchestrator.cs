@@ -46,9 +46,9 @@ public class Orchestrator
         var sucessededMissingSematiIds = await _missingSematiTermination.ProcessAsync(missingSematiIds);
 
         var fixNoActivationActionIds = ReadIds(_fixNoActivationActionIdsFilePath);
-        await _fixNoActivationActionProcess.ProcessAsync(fixNoActivationActionIds);
+        var terminatedNoActivationIds = await _fixNoActivationActionProcess.TerminateAsync(fixNoActivationActionIds);
 
-        var needToExtractSematiCallReport = sucessededFix606Ids.Count != 0 || sucessededMissingSematiIds.Count != 0;
+        var needToExtractSematiCallReport = sucessededFix606Ids.Count != 0 || sucessededMissingSematiIds.Count != 0 || terminatedNoActivationIds.Count != 0;
         if (_runExtractSematiCallReportJob && needToExtractSematiCallReport)
         {
             await _sqlAgentJobRunner.RunJobAndWaitAsync(
@@ -56,6 +56,7 @@ public class Orchestrator
               timeout: TimeSpan.FromMinutes(20),
               pollInterval: TimeSpan.FromSeconds(20));
         }
+
 
         try
         {
@@ -70,7 +71,20 @@ public class Orchestrator
 
             await _resubmissionProcess.ResubmitAsync(actionIdsNeedResubmission);
         }
-        catch (Exception ex) { _logger.LogError(ex, "Unhandled exception during resubmission"); }
+        catch (Exception ex) 
+        { 
+            _logger.LogError(ex, "Unhandled exception during resubmission"); 
+        }
+
+        try
+        {
+            await _fixNoActivationActionProcess.SaveActionsAsync(terminatedNoActivationIds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled exception during resubmission");
+        }
+
     }
 
     private static List<int> ReadIds(string path)
