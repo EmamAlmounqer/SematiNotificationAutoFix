@@ -26,20 +26,20 @@ public class Fix606Process
 
     public async Task<List<int>> ProcessAsync(List<int> actionIds)
     {
-        var sucessfulIds = new List<int>();
+        var successfulIds = new List<int>();
         foreach (var id in actionIds)
         {
             try
             {
                 if (await ProcessAsync(id)) 
-                    sucessfulIds.Add(id);
+                    successfulIds.Add(id);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unhandled exception processing action {ActionId}", id);
             }
         }
-        return sucessfulIds;
+        return successfulIds;
     }
 
     public async Task<bool> ProcessAsync(int sematiNotificationActionId)

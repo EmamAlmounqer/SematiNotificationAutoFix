@@ -30,8 +30,8 @@ public class ResubmissionProcess
         _logger.LogInformation("Waiting {DelayTime} seconds before checking results", delayTimeInSecond);
         await Task.Delay(TimeSpan.FromSeconds(delayTimeInSecond));
 
-        var sucessfulIds = await UpdateNotificationStatusAsync(updatedIds);
-        return sucessfulIds;
+        var successfulIds = await UpdateNotificationStatusAsync(updatedIds);
+        return successfulIds;
     }
 
     private async Task<List<int>> UpdateActionsAsync(List<int> ids)
