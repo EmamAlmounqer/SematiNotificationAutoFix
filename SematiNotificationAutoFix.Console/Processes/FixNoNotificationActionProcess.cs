@@ -66,11 +66,14 @@ public class FixNoNotificationActionProcess
         }
 
         var personId = notification.IdNumber;
+        using var ___ = LogContext.PushProperty("PersonId", personId);
+
         var (msisdns, nobillAccountNumber) = await FetchMsisdnsAndAccountNumber(notification, personId);
 
         List<SematiNotificationAction> newActions = [];
         foreach (var msisdn in msisdns)
         {
+            using var ____ = LogContext.PushProperty("MSISDN", msisdn);
             await _terminationProcess.TerminateAndSaveAsync(msisdn, personId);
 
             var newAction = new SematiNotificationAction
@@ -85,6 +88,7 @@ public class FixNoNotificationActionProcess
             };
 
             newActions.Add(newAction);
+            _logger.LogInformation("Created new SematiNotificationAction for notification {NotificationId} with MSISDN {MSISDN} and AccountNumber {AccountNumber}", notification.Id, msisdn, nobillAccountNumber);
         }
 
         _dbContext.SematiNotificationActions.AddRange(newActions);
@@ -137,15 +141,15 @@ public class FixNoNotificationActionProcess
                                                  .OrderByDescending(x => x.CreatedOn)
                                                  .ToListAsync();
 
-            if (activations is null || activations.Count == 0)
-            {
-                _logger.LogWarning("No Activation found for notification {NotificationId} with personId {PersonId} and IdentityMasterId {IdentityMasterId}", notification.Id, personId, identityMaster.Id);
-            } 
-            else
+            if (activations is not null && activations.Count != 0)
             {
                 var msisdns = activations.Select(x => x.MSISDN).ToList();
                 var nobillAccountNumber = activations.FirstOrDefault()?.NobillAccountNumber;
                 return (msisdns, nobillAccountNumber);
+            }
+            else
+            {
+                _logger.LogWarning("No Activation found for notification {NotificationId} with personId {PersonId} and IdentityMasterId {IdentityMasterId}", notification.Id, personId, identityMaster.Id);
             }
         }
         else

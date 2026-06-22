@@ -22,6 +22,7 @@ public static class LoggingExtensions
             new SqlColumn { ColumnName = "PersonId",        DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
             new SqlColumn { ColumnName = "ProcessName",     DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
             new SqlColumn { ColumnName = "NotificationId",  DataType = SqlDbType.Int,      AllowNull = true },
+            new SqlColumn { ColumnName = "MSISDN",          DataType = SqlDbType.NVarChar, DataLength = 20,  AllowNull = true },
          ];
 
         config.WriteTo.MSSqlServer(
