@@ -13,6 +13,8 @@ public class FixNoNotificationActionProcess
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationProcess _terminationProcess;
+    private readonly int[] _allowedTerminationCodes = [600, 780];
+    private readonly int[] _requestTypeNeedAction = [RequestType.NewActivation.GetHashCode()];
     private readonly NobillServiceClient _nobill;
 
     public FixNoNotificationActionProcess(ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess, NobillServiceClient nobill)
@@ -74,7 +76,12 @@ public class FixNoNotificationActionProcess
         foreach (var msisdn in msisdns)
         {
             using var ____ = LogContext.PushProperty("MSISDN", msisdn);
-            await _terminationProcess.TerminateAndSaveAsync(msisdn, personId);
+            var terminationResult = await _terminationProcess.TerminateAndSaveAsync(msisdn, personId);
+
+            if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
+            {
+                _logger.LogWarning("Termination Form {MSISDN} has ResponseCode {ResponseCode} — skipping", msisdn, terminationResult.ResponseCode);
+            }
 
             var newAction = new SematiNotificationAction
             {
@@ -135,7 +142,6 @@ public class FixNoNotificationActionProcess
 
         if (identityMaster is not null)
         {
-
             var activations = await _dbContext.Activations.AsNoTracking()
                                                  .Where(x => x.IdentityMasterId == identityMaster.Id)
                                                  .OrderByDescending(x => x.CreatedOn)
@@ -157,32 +163,61 @@ public class FixNoNotificationActionProcess
             _logger.LogWarning("No IdentityMaster found for notification {NotificationId} with personId {PersonId}", notification.Id, personId);
         }
 
-        var callReports = await _dbContext.SematiCallReports.AsNoTracking()
-                                                          .Where(x => x.code == "600" && x.personId == personId)
-                                                          .OrderByDescending(x => x.TimeStamp)
-                                                          .FirstOrDefaultAsync();
+        var rawCallReports = await _dbContext.SematiCallReports.AsNoTracking()
+                                                              .Where(x => x.code == "600" && x.personId == personId && !string.IsNullOrEmpty(x.msisdn))
+                                                              .OrderByDescending(x => x.TimeStamp)
+                                                              .ToListAsync();
 
-        if (callReports is null)
+
+        if (rawCallReports is null || rawCallReports.Count == 0)
         {
             _logger.LogWarning("No CallReport with code 600 found for notification {NotificationId} with personId {PersonId}", notification.Id, personId);
             return ([], null);
         }
 
-        if (string.IsNullOrEmpty(callReports.msisdn))
+        var callReports = rawCallReports.GroupBy(x => x.msisdn!)
+                                .ToDictionary(g => g.Key, g => g.ToList());
+
+        if (callReports.Count == 0)
         {
-            _logger.LogWarning("CallReport with code 600 for notification {NotificationId} with personId {PersonId} does not have an MSISDN", notification.Id, personId);
+            _logger.LogWarning("No CallReport with code 600 containing MSISDN found for notification {NotificationId} with personId {PersonId}", notification.Id, personId);
             return ([], null);
         }
 
-        var accountData = await _nobill.GetAccountDataAsync(callReports.msisdn);
-        var accountNumber = accountData.Body.details.AccountNum;
+        var msisdnList = callReports.Keys.ToList();
+        foreach (var (msisdn, reports) in callReports)
+        {
+            var sortedReports = reports.OrderByDescending(x => x.TimeStamp).ToList();
+            var latestReport = sortedReports.FirstOrDefault();
+            if (latestReport?.requestType is not null && _requestTypeNeedAction.Contains(latestReport.requestType.Value))
+            {
+                msisdnList.Add(msisdn);
+            }
+            else
+            {
+                _logger.LogInformation("Latest CallReport with code 600 for MSISDN {MSISDN} in notification {NotificationId} with personId {PersonId} has requestType {RequestType}", msisdn, notification.Id, personId, latestReport?.requestType);
+            }
+        }
+
+        var accountData = await _nobill.GetCustomerDataAsync(msisdnList.FirstOrDefault());
+        var accountNumber = accountData?.Body?.details?.CustomerNum;
+        var customerId = accountData?.Body?.details?.CustomerID;
 
         if (string.IsNullOrEmpty(accountNumber))
         {
-            _logger.LogWarning("No Nobill account number found for MSISDN {MSISDN} from CallReport for notification {NotificationId}", callReports.msisdn, notification.Id);
+            _logger.LogWarning("No Nobill account number found for MSISDN {MSISDN} from CallReport for notification {NotificationId}", msisdnList.FirstOrDefault(), notification.Id);
             return ([], null);
         }
 
-        return ([callReports.msisdn], accountNumber);
+        if (customerId != personId)
+        {
+            _logger.LogWarning("Nobill account data found for MSISDN {MSISDN} from CallReport for notification {NotificationId} does not match personId {PersonId}", msisdnList.FirstOrDefault(), notification.Id, personId);   
+            return ([], null);
+        }
+
+
+        return (msisdnList, accountNumber);
+
+
     }
 }

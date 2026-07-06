@@ -3,7 +3,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Models;
 using SematiNotificationAutoFix.DAL.Data;
-using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
 using System.Text.Json;
 
@@ -15,6 +14,7 @@ public class Fix606Process
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationProcess _terminationProcess;
     private readonly int _sematiServiceCallLogCutOffId;
+    private readonly int[] _allowedTerminationCodes = [600, 780, 727];
 
     public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess)
     {
@@ -103,7 +103,9 @@ public class Fix606Process
         foreach (var number in pendingNumbers)
         {
             using var ____ = LogContext.PushProperty("MSISDN", number);
-            if (!await _terminationProcess.TerminateAndSaveAsync(number, personId))
+            var terminationResult = await _terminationProcess.TerminateAndSaveAsync(number, personId);
+
+            if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
                 allPendingNumberTerminateSucceeded = false;
         }
         return allPendingNumberTerminateSucceeded;
