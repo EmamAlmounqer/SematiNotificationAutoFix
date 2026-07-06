@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SematiNotificationAutoFix.Console.Enums;
 using SematiNotificationAutoFix.DAL.Data;
 using Serilog.Context;
 
@@ -10,6 +11,7 @@ public class MissingSematiTermination
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<MissingSematiTermination> _logger;
     private readonly TerminationProcess _terminationProcess;
+    private readonly int[] _allowedTerminationCodes = [600, 780];
 
     public MissingSematiTermination(ActivationDbContext dbContext, ILogger<MissingSematiTermination> logger, TerminationProcess terminationProcess)
     {
@@ -20,20 +22,20 @@ public class MissingSematiTermination
 
     public async Task<List<int>> ProcessAsync(List<int> actionIds)
     {
-        var sucessfulIds = new List<int>();
+        var successfulIds = new List<int>();
         foreach (var id in actionIds)
         {
             try
             {
                 if (await ProcessAsync(id)) 
-                    sucessfulIds.Add(id);
+                    successfulIds.Add(id);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unhandled exception processing action {ActionId}", id);
             }
         }
-        return sucessfulIds;
+        return successfulIds;
     }
 
     public async Task<bool> ProcessAsync(int sematiNotificationActionId)
@@ -80,13 +82,13 @@ public class MissingSematiTermination
             return false;
         }
 
-        if (callReports.requestType != 1)
+        if (callReports.requestType != (int)RequestType.NewActivation)
         {
             _logger.LogWarning("request type in SematiCallLogID (id={id}) is not type 1 it is type {requestType}", callReports.SematiCallLogID, callReports.requestType);
             return false;
         }
-
-        if (!await _terminationProcess.TerminateAndSaveAsync(action.MSISDN, personId, sematiNotificationActionId))
+        var terminationResult = await _terminationProcess.TerminateAndSaveAsync(action.MSISDN, personId);
+        if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
         {
             _logger.LogError("Failed to terminate number for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId})", sematiNotificationActionId, action.MSISDN, personId);
             return false;

@@ -19,3 +19,19 @@ public enum RequestType
     TransferOwner = 17,
     TransferOperator = 18
 }
+
+public enum SematiNotificationStatus
+{
+    Locked = 1,
+    Created = 2,
+    Completed = 3,
+    Canceled = 4,
+    NotMsisdnsFound = 5,
+    SematiNotUpdated = 6,
+    TestingRecord = 7,
+    UpdateOnly = 8,
+    HasErrors = 9,
+    UpdateAtSematiOnly = 12,
+    ReverificationNumber = 13,
+    CancelSemati = 14,
+}

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Models;
 using SematiNotificationAutoFix.DAL.Data;
-using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
 using System.Text.Json;
 
@@ -15,6 +14,7 @@ public class Fix606Process
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationProcess _terminationProcess;
     private readonly int _sematiServiceCallLogCutOffId;
+    private readonly int[] _allowedTerminationCodes = [600, 780, 727];
 
     public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess)
     {
@@ -26,20 +26,20 @@ public class Fix606Process
 
     public async Task<List<int>> ProcessAsync(List<int> actionIds)
     {
-        var sucessfulIds = new List<int>();
+        var successfulIds = new List<int>();
         foreach (var id in actionIds)
         {
             try
             {
                 if (await ProcessAsync(id)) 
-                    sucessfulIds.Add(id);
+                    successfulIds.Add(id);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unhandled exception processing action {ActionId}", id);
             }
         }
-        return sucessfulIds;
+        return successfulIds;
     }
 
     public async Task<bool> ProcessAsync(int sematiNotificationActionId)
@@ -102,7 +102,10 @@ public class Fix606Process
         var allPendingNumberTerminateSucceeded = true;
         foreach (var number in pendingNumbers)
         {
-            if (!await _terminationProcess.TerminateAndSaveAsync(number, personId, sematiNotificationActionId))
+            using var ____ = LogContext.PushProperty("MSISDN", number);
+            var terminationResult = await _terminationProcess.TerminateAndSaveAsync(number, personId);
+
+            if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
                 allPendingNumberTerminateSucceeded = false;
         }
         return allPendingNumberTerminateSucceeded;

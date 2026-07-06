@@ -10,19 +10,19 @@ public static class LoggingExtensions
 {
     public static IHostApplicationBuilder AddSerilogLogging(this IHostApplicationBuilder builder)
     {
-
-
         var config = new LoggerConfiguration()
             .ReadFrom.Configuration(builder.Configuration)
             .Enrich.FromLogContext();
 
-        // -- db log confgi --
+        // -- db log config --
         var columnOptions = new ColumnOptions();
         columnOptions.AdditionalColumns =
         [
-            new SqlColumn { ColumnName = "ActionId",    DataType = SqlDbType.Int,      AllowNull = true },
-            new SqlColumn { ColumnName = "PersonId",    DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
-            new SqlColumn { ColumnName = "ProcessName", DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
+            new SqlColumn { ColumnName = "ActionId",        DataType = SqlDbType.Int,      AllowNull = true },
+            new SqlColumn { ColumnName = "PersonId",        DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
+            new SqlColumn { ColumnName = "ProcessName",     DataType = SqlDbType.NVarChar, DataLength = 50,  AllowNull = true },
+            new SqlColumn { ColumnName = "NotificationId",  DataType = SqlDbType.Int,      AllowNull = true },
+            new SqlColumn { ColumnName = "MSISDN",          DataType = SqlDbType.NVarChar, DataLength = 20,  AllowNull = true },
          ];
 
         config.WriteTo.MSSqlServer(
