@@ -81,6 +81,7 @@ public class FixNoNotificationActionProcess
             if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
             {
                 _logger.LogWarning("Termination Form {MSISDN} has ResponseCode {ResponseCode} — skipping", msisdn, terminationResult.ResponseCode);
+                continue;
             }
 
             var newAction = new SematiNotificationAction
@@ -217,7 +218,5 @@ public class FixNoNotificationActionProcess
 
 
         return (msisdnList, accountNumber);
-
-
     }
 }

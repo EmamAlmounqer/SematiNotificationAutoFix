@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NobillCalls;
 using SematiNotificationAutoFix.Console.Extensions;
 using SematiNotificationAutoFix.Console.Processes;
 using SematiNotificationAutoFix.Console.Utils;
@@ -20,6 +21,11 @@ builder.Services.AddDbContext<ActivationDbContext>(opts =>
         sqlOpts => sqlOpts.UseCompatibilityLevel(120)));
 
 builder.Services.AddSingleton<NobillClientFactory>();
+builder.Services.AddSingleton<NobillServiceClient>((sp) =>
+{
+    var nobillClientFactory = sp.GetRequiredService<NobillClientFactory>();
+    return nobillClientFactory.CreateClient();
+});
 builder.Services.AddSingleton<SqlAgentJobRunner>();
 builder.Services.AddScoped<TerminationProcess>();
 builder.Services.AddScoped<Fix606Process>();
