@@ -105,7 +105,7 @@ public class Fix606Process
             using var ____ = LogContext.PushProperty("MSISDN", number);
             var terminationResult = await _terminationProcess.TerminateAndSaveAsync(number, personId);
 
-            if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
+            if (!terminationResult.IsTerminationSuccess())
                 allPendingNumberTerminateSucceeded = false;
         }
         return allPendingNumberTerminateSucceeded;

@@ -143,6 +143,17 @@ public class SematiServiceResult
     public string Response { get; set; } = string.Empty;
 }
 
+public static class SematiServiceResultExtention
+{
+    private static readonly int[] _allowedTerminationCodes = [600, 780, 727];
+
+    public static bool IsTerminationSuccess(this SematiServiceResult sematiServiceResult)
+    {
+        if(sematiServiceResult == null) return false;
+        return _allowedTerminationCodes.Contains(sematiServiceResult.ResponseCode);
+    }
+}
+
 public class SematiServiceResponse
 {
     [JsonPropertyName("tcn")]

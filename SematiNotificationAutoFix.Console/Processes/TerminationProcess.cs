@@ -62,10 +62,6 @@ public class TerminationProcess
         {
             _logger.LogError("Failed to terminate number {MSISDN} (PersonId={PersonId}): {ErrorMessage}", msisdn, personId, result.ErrorMessage);
         }
-        else
-        {
-            _logger.LogInformation("Terminated number {MSISDN} — SematiTerminateNumberId={Id} - ", msisdn, terminateNumber.ID);
-        }
 
         return result;
     }
@@ -197,3 +193,4 @@ public class TerminationProcess
         return activationRequest;
     }
 }
+

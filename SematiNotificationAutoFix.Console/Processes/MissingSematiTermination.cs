@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Enums;
+using SematiNotificationAutoFix.Console.Models;
 using SematiNotificationAutoFix.DAL.Data;
 using Serilog.Context;
 
@@ -11,7 +12,6 @@ public class MissingSematiTermination
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<MissingSematiTermination> _logger;
     private readonly TerminationProcess _terminationProcess;
-    private readonly int[] _allowedTerminationCodes = [600, 780];
 
     public MissingSematiTermination(ActivationDbContext dbContext, ILogger<MissingSematiTermination> logger, TerminationProcess terminationProcess)
     {
@@ -88,7 +88,7 @@ public class MissingSematiTermination
             return false;
         }
         var terminationResult = await _terminationProcess.TerminateAndSaveAsync(action.MSISDN, personId);
-        if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
+        if (!terminationResult.IsTerminationSuccess())
         {
             _logger.LogError("Failed to terminate number for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId})", sematiNotificationActionId, action.MSISDN, personId);
             return false;

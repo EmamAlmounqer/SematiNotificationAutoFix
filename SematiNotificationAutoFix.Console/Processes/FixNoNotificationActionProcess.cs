@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using NobillCalls;
 using SematiNotificationAutoFix.Console.Enums;
+using SematiNotificationAutoFix.Console.Models;
 using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
@@ -13,7 +14,6 @@ public class FixNoNotificationActionProcess
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationProcess _terminationProcess;
-    private readonly int[] _allowedTerminationCodes = [600, 780];
     private readonly int[] _requestTypeNeedAction = [RequestType.NewActivation.GetHashCode()];
     private readonly NobillServiceClient _nobill;
 
@@ -78,7 +78,7 @@ public class FixNoNotificationActionProcess
             using var ____ = LogContext.PushProperty("MSISDN", msisdn);
             var terminationResult = await _terminationProcess.TerminateAndSaveAsync(msisdn, personId);
 
-            if (!_allowedTerminationCodes.Contains(terminationResult.ResponseCode))
+            if (!terminationResult.IsTerminationSuccess())
             {
                 _logger.LogWarning("Termination Form {MSISDN} has ResponseCode {ResponseCode} — skipping", msisdn, terminationResult.ResponseCode);
                 continue;
