@@ -14,7 +14,6 @@ public class Fix606Process
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationProcess _terminationProcess;
     private readonly int _sematiServiceCallLogCutOffId;
-    private readonly int[] _allowedTerminationCodes = [600, 780, 727];
 
     public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess)
     {
