@@ -8,12 +8,12 @@ using Serilog.Context;
 using System.Text;
 using System.Text.Json;
 
-namespace SematiNotificationAutoFix.Console.Processes;
+namespace SematiNotificationAutoFix.Console.Services;
 
-public class TerminationProcess
+public class TerminationService
 {
     private readonly ActivationDbContext _dbContext;
-    private readonly ILogger<TerminationProcess> _logger;
+    private readonly ILogger<TerminationService> _logger;
     private readonly string _apiKey;
     private readonly string _sematiUrl;
     private readonly string _sourceId;
@@ -29,7 +29,7 @@ public class TerminationProcess
         PropertyNameCaseInsensitive = true
     };
 
-    public TerminationProcess(IConfiguration configuration, ActivationDbContext context, ILogger<TerminationProcess> logger)
+    public TerminationService(IConfiguration configuration, ActivationDbContext context, ILogger<TerminationService> logger)
     {
         _dbContext = context;
         _logger = logger;

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Models;
+using SematiNotificationAutoFix.Console.Services;
 using SematiNotificationAutoFix.DAL.Data;
 using Serilog.Context;
 using System.Text.Json;
@@ -12,10 +13,10 @@ public class Fix606Process
 {
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<Fix606Process> _logger;
-    private readonly TerminationProcess _terminationProcess;
+    private readonly TerminationService _terminationProcess;
     private readonly int _sematiServiceCallLogCutOffId;
 
-    public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationProcess terminationProcess)
+    public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationService terminationProcess)
     {
         _dbContext = dbContext;
         _logger = logger;

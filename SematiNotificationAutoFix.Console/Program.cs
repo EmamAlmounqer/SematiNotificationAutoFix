@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using NobillCalls;
 using SematiNotificationAutoFix.Console.Extensions;
 using SematiNotificationAutoFix.Console.Processes;
+using SematiNotificationAutoFix.Console.Services;
 using SematiNotificationAutoFix.Console.Utils;
 using SematiNotificationAutoFix.DAL.Data;
 using Serilog;
@@ -27,7 +28,7 @@ builder.Services.AddSingleton<NobillServiceClient>((sp) =>
     return nobillClientFactory.CreateClient();
 });
 builder.Services.AddSingleton<SqlAgentJobRunner>();
-builder.Services.AddScoped<TerminationProcess>();
+builder.Services.AddScoped<TerminationService>();
 builder.Services.AddScoped<Fix606Process>();
 builder.Services.AddScoped<MissingSematiTermination>();
 builder.Services.AddScoped<ResubmissionProcess>();

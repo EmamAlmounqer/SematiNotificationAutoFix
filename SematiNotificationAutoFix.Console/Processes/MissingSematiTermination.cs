@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Enums;
 using SematiNotificationAutoFix.Console.Models;
+using SematiNotificationAutoFix.Console.Services;
 using SematiNotificationAutoFix.DAL.Data;
 using Serilog.Context;
 
@@ -11,12 +12,14 @@ public class MissingSematiTermination
 {
     private readonly ActivationDbContext _dbContext;
     private readonly ILogger<MissingSematiTermination> _logger;
-    private readonly TerminationProcess _terminationProcess;
+    private readonly TerminationService _terminationProcess;
+    private readonly NumberService _numberService;
 
-    public MissingSematiTermination(ActivationDbContext dbContext, ILogger<MissingSematiTermination> logger, TerminationProcess terminationProcess)
+    public MissingSematiTermination(ActivationDbContext dbContext, ILogger<MissingSematiTermination> logger, TerminationService terminationProcess, NumberService numberService)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _numberService = numberService;
         _terminationProcess = terminationProcess;
     }
 
@@ -69,24 +72,14 @@ public class MissingSematiTermination
 
         using var ___ = LogContext.PushProperty("PersonId", personId);
 
-        var callReports = await _dbContext.SematiCallReports.AsNoTracking()
-                                                                  .Where(x => x.msisdn == action.MSISDN
-                                                                              && x.code == "600"
-                                                                              && x.personId == personId)
-                                                                  .OrderByDescending(x => x.TimeStamp)
-                                                                  .FirstOrDefaultAsync();
-                                                                  
-        if (callReports is null)
+        var needTermination = await _numberService.DoNumberNeedTerminationForPersonId(personId, action.MSISDN);
+
+        if (!needTermination)
         {
-            _logger.LogWarning("No code-600 SematiCallReport found for action {ActionId} (MSISDN={MSISDN}, PersonId={PersonId}) — skipping", sematiNotificationActionId, action.MSISDN, personId);
+            _logger.LogWarning("No termination needed for action: {ActionId} (MSISDN={MSISDN}, PersonId={PersonId}) — skipping", sematiNotificationActionId, action.MSISDN, personId);
             return false;
         }
 
-        if (callReports.requestType != (int)RequestType.NewActivation)
-        {
-            _logger.LogWarning("request type in SematiCallLogID (id={id}) is not type 1 it is type {requestType}", callReports.SematiCallLogID, callReports.requestType);
-            return false;
-        }
         var terminationResult = await _terminationProcess.TerminateAndSaveAsync(action.MSISDN, personId);
         if (!terminationResult.IsTerminationSuccess())
         {

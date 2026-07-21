@@ -2,6 +2,10 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SematiNotificationAutoFix.Test/SematiNotificationAutoFix.Tests.csproj" Id="7ab7209d-217c-4dfb-87c1-e4063582dd44" />
+  </Folder>
+  <Project Path="SematiNotificaitonOutageFix/SematiNotificaitonOutageFix.csproj" Id="86025e2f-f2d2-478e-aa07-c984033d7801" />
   <Project Path="SematiNotificationAutoFix.Console/SematiNotificationAutoFix.Console.csproj" />
   <Project Path="SematiNotificationAutoFix.DAL/SematiNotificationAutoFix.DAL.csproj" />
   <Project Path="SematiNotificationAutoFix.Integration/SematiNotificationAutoFix.Integration.csproj" />
