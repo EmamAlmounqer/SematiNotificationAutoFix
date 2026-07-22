@@ -8,6 +8,7 @@ using SematiNotificationAutoFix.DAL.Data;
 using SematiNotificationAutoFix.DAL.Models;
 using Serilog;
 using Serilog.Context;
+using Serilog.Core;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -23,19 +24,22 @@ using var host = builder.Build();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 var dbContext = host.Services.GetRequiredService<ActivationDbContext>();
 
+string fixOutage = "Data/FixOutage.txt";
+
+
 List<int> execludedNotificaitonCode = [12,13,14,15];
 List<int> execludedStep = [2, 4, 6, 8, 10, 12];
 List<int> requestTypeNeedTermination = [1, 5, 17, 18];
 List<string> successCode = ["600"];
 List<string> failedCode = ["1", "715"];
 
+
 try
 {
     LogContext.PushProperty("ProcessName", "FixOutage");
 
-    string fixOutage = "Data/FixOutage.txt";
     var fixOutageNotificationIds = ReadIds(fixOutage);
-    var notifications = dbContext.SematiNotifications.AsNoTracking().Where(x => fixOutageNotificationIds.Contains(x.Id) && execludedNotificaitonCode.Contains(x.NotificationCode)).ToList();
+    var notifications = dbContext.SematiNotifications.AsNoTracking().Where(x => fixOutageNotificationIds.Contains(x.Id) && !execludedNotificaitonCode.Contains(x.NotificationCode)).ToList();
 
     foreach(var notification in notifications)
     {
@@ -49,22 +53,26 @@ try
         {
             try
             {
+                using var _ = LogContext.PushProperty("ActionId", action.Id);
                 using var ____ = LogContext.PushProperty("MSISDN", action.MSISDN);
-           
-                var rawCallReports = await dbContext.SematiCallReports.AsNoTracking()
-                                                      .Where(x => x.msisdn == action.MSISDN && (x.personId == personId || x.oldOwnerId == personId))
-                                                      .OrderByDescending(x => x.TimeStamp)
-                                                      .ToListAsync();
 
-                var latestSuccess = rawCallReports.Where(x => x.code is not null && successCode.Contains(x.code)).OrderByDescending(x => x.TimeStamp).First();
 
-                if (latestSuccess == null)
+                if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780" || action.SematiUpdateCode == "606")
                 {
+                    logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", action.Id, action.SematiUpdateCode);
                     continue;
                 }
 
-                if (!(latestSuccess.requestType.HasValue && requestTypeNeedTermination.Contains(latestSuccess.requestType.Value)))
+                var rawCallReports = await dbContext.SematiCallReports.AsNoTracking()
+                                                    .Where(x => x.msisdn == action.MSISDN && (x.personId == personId || x.oldOwnerId == personId))
+                                                    .OrderByDescending(x => x.TimeStamp)
+                                                    .ToListAsync();
+
+                var latestSuccess = rawCallReports.Where(x => x.code is not null && successCode.Contains(x.code)).OrderByDescending(x => x.TimeStamp).FirstOrDefault();
+
+                if (latestSuccess == null || !(latestSuccess.requestType.HasValue && requestTypeNeedTermination.Contains(latestSuccess.requestType.Value)))
                 {
+                    logger.LogWarning("skipping - no success call report found");
                     continue;
                 }
 
@@ -76,22 +84,23 @@ try
 
                 if (callReportAfterLatestSuccess.Count == 0)
                 {
+                    logger.LogWarning("skipping - no failed termination Semati call report after lates success");
                     continue;
                 }
 
+                logger.LogInformation("add termination record for MSISDN {MSISDN}, and IDNumber {IDNumber}", action.MSISDN, personId);
                 var terminateNumber = new SematiTerminateNumber
                 {
                     MSISDN = action.MSISDN,
                     IDNumber = personId,
                     IDTypeID = GetIdTypeByPersonId(personId),
-                    SematiCode = -2,
+                    SematiCode = -1,
                     NationalityID = 113,
                     SubscriptionType = "V"
                 };
 
                 await dbContext.SematiTerminateNumbers.AddAsync(terminateNumber);
                 await dbContext.SaveChangesAsync();
-
             }
             catch (Exception ex)
             {
@@ -127,3 +136,4 @@ static byte GetIdTypeByPersonId(string s)
     if (a == '2') return 2;
     return 3;
 }
+
