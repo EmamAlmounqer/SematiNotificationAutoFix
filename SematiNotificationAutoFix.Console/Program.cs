@@ -28,6 +28,7 @@ builder.Services.AddSingleton<NobillServiceClient>((sp) =>
     return nobillClientFactory.CreateClient();
 });
 builder.Services.AddSingleton<SqlAgentJobRunner>();
+builder.Services.AddScoped<NumberService>();
 builder.Services.AddScoped<TerminationService>();
 builder.Services.AddScoped<Fix606Process>();
 builder.Services.AddScoped<MissingSematiTermination>();

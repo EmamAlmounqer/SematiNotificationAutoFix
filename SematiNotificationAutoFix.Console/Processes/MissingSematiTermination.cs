@@ -57,6 +57,8 @@ public class MissingSematiTermination
             return false;
         }
 
+        using var ___ = LogContext.PushProperty("NotificationId", action.SematiNotificationId);
+
         if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
         {
             _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", sematiNotificationActionId, action.SematiUpdateCode);
@@ -70,7 +72,7 @@ public class MissingSematiTermination
             return false;
         }
 
-        using var ___ = LogContext.PushProperty("PersonId", personId);
+        using var ____ = LogContext.PushProperty("PersonId", personId);
 
         var needTermination = await _numberService.DoNumberNeedTerminationForPersonId(personId, action.MSISDN);
 

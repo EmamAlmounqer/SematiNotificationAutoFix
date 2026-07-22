@@ -101,6 +101,7 @@ public class FixNoNotificationActionProcess
         await _dbContext.SaveChangesAsync();
 
         var newActionIds = newActions.Select(a => a.Id).ToList();
+
         _logger.LogInformation("Saved {Count} new actions for notification {NotificationId} — IDs: {@Ids}, MSISDNs: {@MSISDNs}, AccountNumber: {@AccountNumber}",
             newActions.Count,
             notification.Id,
@@ -132,7 +133,6 @@ public class FixNoNotificationActionProcess
         bool isSaudiNumber = isTenDigitsNumber && (idNumber[0] == '1' || idNumber[0] == '2');
         return !isSaudiNumber;
     }
-
 
 }
 

@@ -36,7 +36,7 @@ List<string> failedCode = ["1", "715"];
 
 try
 {
-    LogContext.PushProperty("ProcessName", "FixOutage");
+    using var _ = LogContext.PushProperty("ProcessName", "FixOutage");
 
     var fixOutageNotificationIds = ReadIds(fixOutage);
     var notifications = dbContext.SematiNotifications.AsNoTracking().Where(x => fixOutageNotificationIds.Contains(x.Id) && !execludedNotificaitonCode.Contains(x.NotificationCode)).ToList();
@@ -53,8 +53,8 @@ try
         {
             try
             {
-                using var _ = LogContext.PushProperty("ActionId", action.Id);
-                using var ____ = LogContext.PushProperty("MSISDN", action.MSISDN);
+                using var ____ = LogContext.PushProperty("ActionId", action.Id);
+                using var _____ = LogContext.PushProperty("MSISDN", action.MSISDN);
 
 
                 if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780" || action.SematiUpdateCode == "606")
