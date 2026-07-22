@@ -60,6 +60,8 @@ public class Fix606Process
             return false;
         }
 
+        using var ___ = LogContext.PushProperty("NotificationId", action.SematiNotificationId);
+
         if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
         {
             _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", sematiNotificationActionId, action.SematiUpdateCode);
@@ -73,7 +75,7 @@ public class Fix606Process
             return false;
         }
 
-        using var ___ = LogContext.PushProperty("PersonId", personId);
+        using var ____ = LogContext.PushProperty("PersonId", personId);
 
         var callLog = await _dbContext.SematiServiceCallLogs.AsNoTracking()
                                                             .Where(x => x.Id > _sematiServiceCallLogCutOffId
@@ -102,7 +104,7 @@ public class Fix606Process
         var allPendingNumberTerminateSucceeded = true;
         foreach (var number in pendingNumbers)
         {
-            using var ____ = LogContext.PushProperty("MSISDN", number);
+            using var _____ = LogContext.PushProperty("MSISDN", number);
             var terminationResult = await _terminationProcess.TerminateAndSaveAsync(number, personId);
 
             if (!terminationResult.IsTerminationSuccess())

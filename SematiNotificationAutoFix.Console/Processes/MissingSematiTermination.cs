@@ -57,6 +57,8 @@ public class MissingSematiTermination
             return false;
         }
 
+        using var ___ = LogContext.PushProperty("NotificationId", action.SematiNotificationId);
+
         if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
         {
             _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", sematiNotificationActionId, action.SematiUpdateCode);

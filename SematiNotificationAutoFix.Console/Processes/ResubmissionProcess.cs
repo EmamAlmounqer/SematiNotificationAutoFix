@@ -46,6 +46,8 @@ public class ResubmissionProcess
         {
             using var __ = LogContext.PushProperty("ActionId", action.Id);
             using var ___ = LogContext.PushProperty("MSISDN", action.MSISDN);
+            using var ____ = LogContext.PushProperty("NotificationId", action.SematiNotificationId);
+
 
             if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
             {
