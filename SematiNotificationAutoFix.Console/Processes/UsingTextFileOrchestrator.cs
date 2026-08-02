@@ -4,14 +4,14 @@ using SematiNotificationAutoFix.Console.Utils;
 
 namespace SematiNotificationAutoFix.Console.Processes;
 
-public class Orchestrator
+public class UsingTextFileOrchestrator : IOrchestrator
 {
     private readonly Fix606Process _fix606Process;
     private readonly MissingSematiTermination _missingSematiTermination;
     private readonly FixNoNotificationActionProcess _fixNoNotificationActionProcess;
     private readonly ResubmissionProcess _resubmissionProcess;
     private readonly SqlAgentJobRunner _sqlAgentJobRunner;
-    private readonly ILogger<Orchestrator> _logger;
+    private readonly ILogger<UsingTextFileOrchestrator> _logger;
     private readonly string _fix606IdsFilePath = "Data/Fix606.txt";
     private readonly string _missingSematiIdsFilePath = "Data/MissingSematiTermination.txt";
     private readonly string _resubmissionIdsFilePath = "Data/Resubmission.txt";
@@ -19,12 +19,12 @@ public class Orchestrator
     private readonly bool _resubmitSucceededProcess;
     private readonly bool _runExtractSematiCallReportJob;
 
-    public Orchestrator(Fix606Process fix606Process,
+    public UsingTextFileOrchestrator(Fix606Process fix606Process,
                         MissingSematiTermination missingSematiTermination,
                         ResubmissionProcess resubmissionProcess,
                         SqlAgentJobRunner sqlAgentJobRunner,
                         FixNoNotificationActionProcess fixNoNotificationActionProcess,
-                        ILogger<Orchestrator> logger,
+                        ILogger<UsingTextFileOrchestrator> logger,
                         IConfiguration configuration)
     {
         _fix606Process = fix606Process;
@@ -71,9 +71,9 @@ public class Orchestrator
 
             await _resubmissionProcess.ResubmitAsync(actionIdsNeedResubmission);
         }
-        catch (Exception ex) 
-        { 
-            _logger.LogError(ex, "Unhandled exception during resubmission"); 
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled exception during resubmission");
         }
 
     }

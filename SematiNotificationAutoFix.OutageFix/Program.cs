@@ -84,7 +84,7 @@ try
 
                 if (callReportAfterLatestSuccess.Count == 0)
                 {
-                    logger.LogWarning("skipping - no failed termination Semati call report after lates success");
+                    logger.LogWarning("skipping - no failed termination Semati call report after latest success");
                     continue;
                 }
 

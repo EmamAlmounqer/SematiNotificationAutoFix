@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="7qpNWMeR4R7h0VhjcSdJ" name="Page-1">
-        <mxGraphModel dx="1662" dy="1139" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="1726" dy="785" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -183,7 +183,7 @@
         </mxGraphModel>
     </diagram>
     <diagram id="S2sGmGiqenkbJAIUHxtF" name="Decide">
-        <mxGraphModel dx="1662" dy="1139" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="1454" dy="785" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -196,7 +196,7 @@
                 <mxCell id="XQsSgA1pHI1Ruzip9G0v-2" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="YyrHg-Xmq7M27AL0pQB0-2" target="XQsSgA1pHI1Ruzip9G0v-1" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="X5egq3fFLcmw8OsahRKT-2" style="edgeStyle=none;html=1;" edge="1" parent="1" source="YyrHg-Xmq7M27AL0pQB0-2" target="X5egq3fFLcmw8OsahRKT-1">
+                <mxCell id="X5egq3fFLcmw8OsahRKT-2" style="edgeStyle=none;html=1;" parent="1" source="YyrHg-Xmq7M27AL0pQB0-2" target="X5egq3fFLcmw8OsahRKT-1" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="YyrHg-Xmq7M27AL0pQB0-2" value="Status 5&lt;br&gt;no Notification Action" style="rhombus;whiteSpace=wrap;html=1;rounded=1;" parent="1" vertex="1">
@@ -221,17 +221,17 @@
                 </mxCell>
                 <UserObject label="Fix 606 Process" id="qyh9WQXHOXEY0qi-5j-K-4">
                     <mxCell style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;rounded=1;" parent="1" vertex="1">
-                        <mxGeometry x="420" y="240" width="160" height="80" as="geometry"/>
+                        <mxGeometry x="440" y="240" width="160" height="80" as="geometry"/>
                     </mxCell>
                 </UserObject>
-                <mxCell id="X5egq3fFLcmw8OsahRKT-1" value="has notification action with error" style="rhombus;whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+                <mxCell id="X5egq3fFLcmw8OsahRKT-1" value="has notification action with error" style="rhombus;whiteSpace=wrap;html=1;rounded=1;" parent="1" vertex="1">
                     <mxGeometry x="190" y="540" width="160" height="80" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
     </diagram>
     <diagram id="JsBPFgifqISg8Ayi0xXb" name="No Notification Action">
-        <mxGraphModel dx="2512" dy="1139" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="2304" dy="785" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>

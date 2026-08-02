@@ -15,6 +15,7 @@ public class Fix606Process
     private readonly ILogger<Fix606Process> _logger;
     private readonly TerminationService _terminationProcess;
     private readonly int _sematiServiceCallLogCutOffId;
+    private readonly int _sematiNotificaitonCutOff;
 
     public Fix606Process(IConfiguration configuration, ActivationDbContext dbContext, ILogger<Fix606Process> logger, TerminationService terminationProcess)
     {
@@ -22,6 +23,7 @@ public class Fix606Process
         _logger = logger;
         _terminationProcess = terminationProcess;
         _sematiServiceCallLogCutOffId = configuration.GetValue<int>("ProcessOptions:SematiServiceCallLogCutOffId");
+        _sematiNotificaitonCutOff = configuration.GetValue<int>("ProcessOptions:SematiNotificaitonCutOff");
     }
 
     public async Task<List<int>> ProcessAsync(List<int> actionIds)
@@ -31,7 +33,7 @@ public class Fix606Process
         {
             try
             {
-                if (await ProcessAsync(id)) 
+                if (await ProcessAsync(id))
                     successfulIds.Add(id);
             }
             catch (Exception ex)
@@ -111,5 +113,30 @@ public class Fix606Process
                 allPendingNumberTerminateSucceeded = false;
         }
         return allPendingNumberTerminateSucceeded;
+    }
+
+    public async Task<List<int>> Get606FromDB()
+    {
+        using var _ = LogContext.PushProperty("ProcessName", "Fix606");
+
+        var notifications = await _dbContext.SematiNotificationActions
+            .Where(a => a.Id > _sematiNotificaitonCutOff
+                     && a.SematiNotificationActionStepId % 2 == 0
+                     && a.ExecutedAt != null
+                     && a.SematiUpdateCode == "606"
+                     && !_dbContext.SematiNotificationActions.Any(x =>
+                            x.SematiNotificationId == a.SematiNotificationId
+                         && x.Id > _sematiNotificaitonCutOff
+                         && x.SematiNotificationActionStepId % 2 == 0
+                         && x.ExecutedAt != null
+                         && (x.SematiUpdateCode == "600" || x.SematiUpdateCode == "780")))
+            .Select(a => a.SematiNotification)
+            .Distinct()
+            .ToListAsync();
+
+        return notifications
+            .SelectMany(n => n.SematiNotificationActions.Select(action => action.Id))
+            .Distinct()
+            .ToList();
     }
 }

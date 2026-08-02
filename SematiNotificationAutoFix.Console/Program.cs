@@ -34,12 +34,13 @@ builder.Services.AddScoped<Fix606Process>();
 builder.Services.AddScoped<MissingSematiTermination>();
 builder.Services.AddScoped<ResubmissionProcess>();
 builder.Services.AddScoped<FixNoNotificationActionProcess>();
-builder.Services.AddScoped<Orchestrator>();
+//builder.Services.AddScoped<UsingTextFileOrchestrator>();
+builder.Services.AddScoped<Fix606ByDBOrchestrator>();
 
 using var host = builder.Build();
 
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
-var orchestrator = host.Services.GetRequiredService<Orchestrator>();
+var orchestrator = host.Services.GetRequiredService<UsingTextFileOrchestrator>();
 
 try
 {
