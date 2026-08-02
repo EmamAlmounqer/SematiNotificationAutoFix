@@ -119,7 +119,7 @@ public class Fix606Process
     {
         using var _ = LogContext.PushProperty("ProcessName", "Fix606");
 
-        var notifications = await _dbContext.SematiNotificationActions
+        var notifications = await _dbContext.SematiNotificationActions.AsNoTracking()
             .Where(a => a.Id > _sematiNotificaitonCutOff
                      && a.SematiNotificationActionStepId % 2 == 0
                      && a.ExecutedAt != null
