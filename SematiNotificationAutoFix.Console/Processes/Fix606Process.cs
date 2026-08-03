@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using SematiNotificationAutoFix.Console.Models;
 using SematiNotificationAutoFix.Console.Services;
 using SematiNotificationAutoFix.DAL.Data;
+using SematiNotificationAutoFix.DAL.Models;
 using Serilog.Context;
 using System.Text.Json;
 
@@ -44,6 +45,24 @@ public class Fix606Process
         return successfulIds;
     }
 
+    public async Task<List<int>> ProcessAsync(List<SematiNotificationAction> sematiNotificationActionId)
+    {
+        var successfulIds = new List<int>();
+        foreach (var action in sematiNotificationActionId)
+        {
+            try
+            {
+                if (await ProcessAsync(action))
+                    successfulIds.Add(action.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception processing action {ActionId}", action.Id);
+            }
+        }
+        return successfulIds;
+    }
+
     public async Task<bool> ProcessAsync(int sematiNotificationActionId)
     {
         using var _ = LogContext.PushProperty("ProcessName", "Fix606");
@@ -62,18 +81,25 @@ public class Fix606Process
             return false;
         }
 
+        return await ProcessAsync(action);
+    }
+
+    public async Task<bool> ProcessAsync(SematiNotificationAction action)
+    {
+        using var _ = LogContext.PushProperty("ProcessName", "Fix606");
+        using var __ = LogContext.PushProperty("ActionId", action.Id);
         using var ___ = LogContext.PushProperty("NotificationId", action.SematiNotificationId);
 
         if (action.SematiUpdateCode == "600" || action.SematiUpdateCode == "780")
         {
-            _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", sematiNotificationActionId, action.SematiUpdateCode);
+            _logger.LogWarning("Action {ActionId} has SematiUpdateCode {SematiUpdateCode}  — skipping", action.Id, action.SematiUpdateCode);
             return false;
         }
 
         var personId = action.SematiNotification.IdNumber;
         if (personId is null)
         {
-            _logger.LogWarning("No PersonId found for action {ActionId} — skipping", sematiNotificationActionId);
+            _logger.LogWarning("No PersonId found for action {ActionId} — skipping", action.Id);
             return false;
         }
 
@@ -90,18 +116,18 @@ public class Fix606Process
 
         if (callLog is null || callLog.Code != 606)
         {
-            _logger.LogWarning("No 606 service call log found for action {ActionId} (TCN={Tcn}) — skipping", sematiNotificationActionId, action.SematiUpdateTcn);
+            _logger.LogWarning("No 606 service call log found for action {ActionId} (TCN={Tcn}) — skipping", action.Id, action.SematiUpdateTcn);
             return false;
         }
 
         var pendingNumbers = JsonSerializer.Deserialize<SematiServiceResponse>(callLog.ResponseText)?.PendingNumbers;
         if (pendingNumbers is null)
         {
-            _logger.LogWarning("Could not deserialize pending numbers for action {ActionId} — skipping", sematiNotificationActionId);
+            _logger.LogWarning("Could not deserialize pending numbers for action {ActionId} — skipping", action.Id);
             return false;
         }
 
-        _logger.LogInformation("Found {Count} pending numbers for action {ActionId}: {@Numbers}", pendingNumbers.Count, sematiNotificationActionId, pendingNumbers);
+        _logger.LogInformation("Found {Count} pending numbers for action {ActionId}: {@Numbers}", pendingNumbers.Count, action.Id, pendingNumbers);
 
         var allPendingNumberTerminateSucceeded = true;
         foreach (var number in pendingNumbers)
@@ -120,13 +146,13 @@ public class Fix606Process
         using var _ = LogContext.PushProperty("ProcessName", "Fix606");
 
         var notifications = await _dbContext.SematiNotificationActions.AsNoTracking()
-            .Where(a => a.Id > _sematiNotificaitonCutOff
+            .Where(a => a.SematiNotification.Id > _sematiNotificaitonCutOff
                      && a.SematiNotificationActionStepId % 2 == 0
                      && a.ExecutedAt != null
                      && a.SematiUpdateCode == "606"
                      && !_dbContext.SematiNotificationActions.Any(x =>
                             x.SematiNotificationId == a.SematiNotificationId
-                         && x.Id > _sematiNotificaitonCutOff
+                         && x.SematiNotification.Id > _sematiNotificaitonCutOff
                          && x.SematiNotificationActionStepId % 2 == 0
                          && x.ExecutedAt != null
                          && (x.SematiUpdateCode == "600" || x.SematiUpdateCode == "780")))

@@ -30,7 +30,7 @@ public class Fix606ByDBOrchestrator : IOrchestrator
     public async Task RunAsync()
     {
         var fix606ActionIds = await _fix606Process.Get606FromDB();
-        if (fix606ActionIds == null || !fix606ActionIds.Any())
+        if (fix606ActionIds == null || fix606ActionIds.Count == 0)
         {
             _logger.LogInformation("No 606 notification Found");
             return;

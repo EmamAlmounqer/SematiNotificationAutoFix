@@ -40,6 +40,9 @@
 		<None Update="Data\FixNoNotificationAction.txt">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="Data\FixOutage.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 		<None Update="Data\Resubmission.txt">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
