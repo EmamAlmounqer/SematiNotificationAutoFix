@@ -36,6 +36,8 @@ public class Fix606ByDBOrchestrator : IOrchestrator
             return;
         }
 
+        _logger.LogInformation("Found {NotificationActionCount} 606 notification, ids: {@fix606ActionIds}", fix606ActionIds.Count, fix606ActionIds);
+
         var succeededFix606ActionIds = await _fix606Process.ProcessAsync(fix606ActionIds);
 
         var needToExtractSematiCallReport = succeededFix606ActionIds.Count != 0;

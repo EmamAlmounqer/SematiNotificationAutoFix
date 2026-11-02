@@ -206,8 +206,10 @@ public class Fix606Process
         using var _ = LogContext.PushProperty("ProcessName", "Fix606");
 
         var notifications = await _dbContext.SematiNotificationActions.AsNoTracking()
+            .Include(x => x.SematiNotification)
             .Where(a => a.SematiNotification.Id > _sematiNotificaitonCutOff
                      && a.SematiNotification.NotificationCode < 8
+                     && a.SematiNotificationActionStepId % 2 == 0
                      && a.ExecutedAt != null
                      && a.SematiUpdateCode == "606"
                      && !_dbContext.SematiNotificationActions.Any(x =>
@@ -216,14 +218,11 @@ public class Fix606Process
                          && x.SematiNotificationActionStepId % 2 == 0
                          && x.ExecutedAt != null
                          && (x.SematiUpdateCode == "600" || x.SematiUpdateCode == "780")))
-            .Select(a => a.SematiNotification)
+            .Select(a => a.Id)
             .Distinct()
             .ToListAsync();
 
-        return notifications
-            .SelectMany(n => n.SematiNotificationActions.Select(action => action.Id))
-            .Distinct()
-            .ToList();
+        return notifications;
     }
 
     private int GetSematiNotificationActionStepIdByCode(int code)
