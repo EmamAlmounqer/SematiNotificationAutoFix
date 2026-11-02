@@ -19,7 +19,10 @@ builder.AddSerilogLogging();
 builder.Services.AddDbContext<ActivationDbContext>(opts =>
     opts.UseSqlServer(
         builder.Configuration.GetConnectionString("Default"),
-        sqlOpts => sqlOpts.UseCompatibilityLevel(120)));
+        sqlOpts => sqlOpts
+            .UseCompatibilityLevel(120)
+            .CommandTimeout(builder.Configuration.GetValue("ProcessOptions:SqlCommandTimeoutSeconds", 180))
+            .EnableRetryOnFailure(maxRetryCount: 2, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)));
 
 builder.Services.AddSingleton<NobillClientFactory>();
 builder.Services.AddSingleton<NobillServiceClient>((sp) =>
@@ -34,8 +37,9 @@ builder.Services.AddScoped<Fix606Process>();
 builder.Services.AddScoped<MissingSematiTermination>();
 builder.Services.AddScoped<ResubmissionProcess>();
 builder.Services.AddScoped<FixNoNotificationActionProcess>();
-//builder.Services.AddScoped<IOrchestrator, UsingTextFileOrchestrator>();
-builder.Services.AddScoped<IOrchestrator, Fix606ByDBOrchestrator>();
+
+builder.Services.AddScoped<IOrchestrator, UsingTextFileOrchestrator>();
+//builder.Services.AddScoped<IOrchestrator, Fix606ByDBOrchestrator>();
 
 using var host = builder.Build();
 

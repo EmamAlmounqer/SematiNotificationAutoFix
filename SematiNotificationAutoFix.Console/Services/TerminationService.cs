@@ -82,7 +82,10 @@ public class TerminationService
             number.ExecutionTime = DateTime.Now;
             number.TCN = result.ObjResponse?.Tcn;
 
-            _logger.LogInformation("Semati response: code={Code}, TCN={TCN}", result.ResponseCode, number.TCN);
+            if (result.ResponseCode != 600 || result.ResponseCode != 780)
+                _logger.LogWarning("Semati response: code={Code}, TCN={TCN}", result.ResponseCode, number.TCN);
+            else
+                _logger.LogInformation("Semati response: code={Code}, TCN={TCN}", result.ResponseCode, number.TCN);
 
             string requestTypeText = number.ProcessId == (int)SematiProcess.Termination ? RequestType.TerminateActivation.ToString() : RequestType.CancelSIM.ToString();
             await AddToSematiServiceLogAsync(formattedRequest, result.ObjResponse, "NotifyCustomerAction", requestTypeText, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Response : result.ErrorMessage);
